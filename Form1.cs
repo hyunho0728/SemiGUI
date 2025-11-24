@@ -58,7 +58,7 @@ namespace SemiGUI
         {
             using (MySqlConnection conn = new MySqlConnection(connectDB))
             {
-                bool inputDummy = true; // 더미 데이터 입력 여부
+                bool inputDummy = false; // 더미 데이터 입력 여부
 
                 try
                 {
@@ -88,10 +88,9 @@ namespace SemiGUI
                     MySqlCommand cmd = new MySqlCommand();
                     cmd.Connection = conn;
 
-                    MySqlCommand vcmd = new MySqlCommand("select version();", conn);
-                    string version = vcmd.ExecuteScalar().ToString();
-
-                    MessageBox.Show("현재 MySQL 버전: " + version);
+                    //MySqlCommand vcmd = new MySqlCommand("select version();", conn);
+                    //string version = vcmd.ExecuteScalar().ToString();
+                    //MessageBox.Show("현재 MySQL 버전: " + version);
 
                     foreach (string q in query)
                     {
@@ -102,6 +101,7 @@ namespace SemiGUI
                 catch (Exception ex)
                 {
                     MessageBox.Show("DB 연결 실패: " + ex.Message);
+                    Environment.Exit(1);
                 }
             }
         }
