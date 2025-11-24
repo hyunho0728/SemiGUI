@@ -20,6 +20,14 @@
             this.pnlRight = new System.Windows.Forms.Panel();
             this.pnlCenter = new System.Windows.Forms.Panel();
 
+            // --- [추가됨] 그래픽 대신 사용할 실제 패널들 ---
+            this.pnlChamberA = new System.Windows.Forms.Panel();
+            this.pnlChamberB = new System.Windows.Forms.Panel();
+            this.pnlChamberC = new System.Windows.Forms.Panel();
+            this.pnlFoupA = new System.Windows.Forms.Panel();
+            this.pnlFoupB = new System.Windows.Forms.Panel();
+            // ---------------------------------------------
+
             // 상단 컨트롤들
             this.grpLogin = new System.Windows.Forms.GroupBox();
             this.txtId = new System.Windows.Forms.TextBox();
@@ -41,7 +49,7 @@
             this.lblDate = new System.Windows.Forms.Label();
             this.lblTime = new System.Windows.Forms.Label();
 
-            // 좌측 PM A
+            // 좌측 PM A, B, C
             this.grpPmA = new System.Windows.Forms.GroupBox();
             this.lblStepA = new System.Windows.Forms.Label();
             this.txtProcessA = new System.Windows.Forms.TextBox();
@@ -52,7 +60,6 @@
             this.btnStopA = new System.Windows.Forms.Button();
             this.btnStartA = new System.Windows.Forms.Button();
 
-            // 좌측 PM B
             this.grpPmB = new System.Windows.Forms.GroupBox();
             this.lblStepB = new System.Windows.Forms.Label();
             this.txtProcessB = new System.Windows.Forms.TextBox();
@@ -63,7 +70,6 @@
             this.btnStopB = new System.Windows.Forms.Button();
             this.btnStartB = new System.Windows.Forms.Button();
 
-            // 좌측 PM C
             this.grpPmC = new System.Windows.Forms.GroupBox();
             this.lblStepC = new System.Windows.Forms.Label();
             this.txtProcessC = new System.Windows.Forms.TextBox();
@@ -74,7 +80,7 @@
             this.btnStopC = new System.Windows.Forms.Button();
             this.btnStartC = new System.Windows.Forms.Button();
 
-            // 우측 Form A
+            // 우측 Form A, B
             this.grpFormA = new System.Windows.Forms.GroupBox();
             this.lblInfoA = new System.Windows.Forms.Label();
             this.lblCarrierA = new System.Windows.Forms.Label();
@@ -82,7 +88,6 @@
             this.btnLoadA = new System.Windows.Forms.Button();
             this.btnUnloadA = new System.Windows.Forms.Button();
 
-            // 우측 Form B
             this.grpFormB = new System.Windows.Forms.GroupBox();
             this.lblInfoB = new System.Windows.Forms.Label();
             this.lblCarrierB = new System.Windows.Forms.Label();
@@ -107,6 +112,7 @@
             this.grpFormA.SuspendLayout();
             this.grpFormB.SuspendLayout();
             this.pnlBottom.SuspendLayout();
+            this.pnlCenter.SuspendLayout(); // Center 패널 레이아웃
             this.SuspendLayout();
 
             // Form1
@@ -121,10 +127,15 @@
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.BackColor = System.Drawing.Color.White;
 
-            // --- Top Panel ---
+            // ... (Top, Left, Right, Bottom 코드는 기존과 동일하므로 생략하거나 그대로 둡니다) ...
+            // 지면 관계상 핵심이 아닌 부분은 줄였습니다. 기존 코드 그대로 유지하세요.
+            // 위에서 주신 Top, Left, Right, Bottom 코드는 이미 완벽합니다.
+
+            // [Top Panel - 생략된 코드 복원 필요시 이전 답변 참조]
             this.pnlTop.Dock = System.Windows.Forms.DockStyle.Top;
             this.pnlTop.Height = 80;
             this.pnlTop.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            // ... (Top 내부 컨트롤 코드들: grpLogin, LED 등 이전과 동일) ...
 
             // Login
             this.grpLogin.Text = "LOGIN";
@@ -139,31 +150,24 @@
             // LEDs
             this.lblTm.Text = "TM"; this.lblTm.Location = new System.Drawing.Point(220, 10); this.lblTm.AutoSize = true;
             this.pnlLedTm.Location = new System.Drawing.Point(220, 30); this.pnlLedTm.Size = new System.Drawing.Size(30, 30); this.pnlLedTm.BackColor = System.Drawing.Color.SeaGreen;
-
             this.lblPmA_Led.Text = "PM A"; this.lblPmA_Led.Location = new System.Drawing.Point(270, 10); this.lblPmA_Led.AutoSize = true;
             this.pnlLedPmA.Location = new System.Drawing.Point(270, 30); this.pnlLedPmA.Size = new System.Drawing.Size(30, 30); this.pnlLedPmA.BackColor = System.Drawing.Color.SeaGreen;
-
             this.lblPmB_Led.Text = "PM B"; this.lblPmB_Led.Location = new System.Drawing.Point(320, 10); this.lblPmB_Led.AutoSize = true;
             this.pnlLedPmB.Location = new System.Drawing.Point(320, 30); this.pnlLedPmB.Size = new System.Drawing.Size(30, 30); this.pnlLedPmB.BackColor = System.Drawing.Color.SeaGreen;
-
             this.lblPmC_Led.Text = "PM C"; this.lblPmC_Led.Location = new System.Drawing.Point(370, 10); this.lblPmC_Led.AutoSize = true;
             this.pnlLedPmC.Location = new System.Drawing.Point(370, 30); this.pnlLedPmC.Size = new System.Drawing.Size(30, 30); this.pnlLedPmC.BackColor = System.Drawing.Color.SeaGreen;
-
             this.pnlTop.Controls.Add(this.lblTm); this.pnlTop.Controls.Add(this.pnlLedTm);
             this.pnlTop.Controls.Add(this.lblPmA_Led); this.pnlTop.Controls.Add(this.pnlLedPmA);
             this.pnlTop.Controls.Add(this.lblPmB_Led); this.pnlTop.Controls.Add(this.pnlLedPmB);
             this.pnlTop.Controls.Add(this.lblPmC_Led); this.pnlTop.Controls.Add(this.pnlLedPmC);
-
             // Host
             this.pnlHost.Location = new System.Drawing.Point(500, 10); this.pnlHost.Size = new System.Drawing.Size(150, 60); this.pnlHost.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.lblHostTitle.Text = "HOST"; this.lblHostTitle.Location = new System.Drawing.Point(10, 10); this.lblHostTitle.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             this.lblHostState.Text = "NONE"; this.lblHostState.Location = new System.Drawing.Point(10, 35);
             this.pnlHost.Controls.Add(this.lblHostTitle); this.pnlHost.Controls.Add(this.lblHostState);
             this.pnlTop.Controls.Add(this.pnlHost);
-
             this.btnConnect.Text = "CONNECT"; this.btnConnect.Location = new System.Drawing.Point(660, 10); this.btnConnect.Size = new System.Drawing.Size(80, 60); this.btnConnect.BackColor = System.Drawing.Color.Khaki;
             this.pnlTop.Controls.Add(this.btnConnect);
-
             // Time
             this.pnlTime.Dock = System.Windows.Forms.DockStyle.Right; this.pnlTime.Width = 150; this.pnlTime.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.lblDate.Text = "2025/11/10"; this.lblDate.Location = new System.Drawing.Point(10, 10); this.lblDate.Font = new System.Drawing.Font("Arial", 12);
@@ -172,18 +176,13 @@
             this.pnlTop.Controls.Add(this.pnlTime);
 
 
-            // --- Left Panel (PM A, B, C) ---
+            // Left Panel (PM A, B, C)
             this.pnlLeft.Dock = System.Windows.Forms.DockStyle.Left; this.pnlLeft.Width = 300; this.pnlLeft.Padding = new System.Windows.Forms.Padding(10);
 
-            // PM A
+            // PM A Group
             this.grpPmA.Text = "PM A"; this.grpPmA.Location = new System.Drawing.Point(10, 10); this.grpPmA.Size = new System.Drawing.Size(280, 180); this.grpPmA.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             this.lblStepA.Text = "Step Name"; this.lblStepA.Location = new System.Drawing.Point(10, 25);
-            // [수정] 폰트를 Regular로 변경하고 X위치를 110으로 조정하여 잘림 방지
-            this.txtProcessA.Text = "Process";
-            this.txtProcessA.Location = new System.Drawing.Point(110, 22);
-            this.txtProcessA.Width = 140;
-            this.txtProcessA.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular);
-
+            this.txtProcessA.Text = "Process"; this.txtProcessA.Location = new System.Drawing.Point(110, 22); this.txtProcessA.Width = 140; this.txtProcessA.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular);
             this.lblPressA.Text = "Pressure"; this.lblPressA.Location = new System.Drawing.Point(10, 55);
             this.lblPressValA.Text = "0.0 / 0.0"; this.lblPressValA.Location = new System.Drawing.Point(110, 52); this.lblPressValA.Size = new System.Drawing.Size(140, 20); this.lblPressValA.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle; this.lblPressValA.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.lblProgA.Text = "Progress"; this.lblProgA.Location = new System.Drawing.Point(10, 85);
@@ -192,16 +191,10 @@
             this.btnStartA.Text = "START"; this.btnStartA.Location = new System.Drawing.Point(100, 140); this.btnStartA.Size = new System.Drawing.Size(80, 30); this.btnStartA.BackColor = System.Drawing.Color.White;
             this.grpPmA.Controls.Add(this.lblStepA); this.grpPmA.Controls.Add(this.txtProcessA); this.grpPmA.Controls.Add(this.lblPressA); this.grpPmA.Controls.Add(this.lblPressValA); this.grpPmA.Controls.Add(this.lblProgA); this.grpPmA.Controls.Add(this.progA); this.grpPmA.Controls.Add(this.btnStopA); this.grpPmA.Controls.Add(this.btnStartA);
             this.pnlLeft.Controls.Add(this.grpPmA);
-
-            // PM B
+            // PM B Group
             this.grpPmB.Text = "PM B"; this.grpPmB.Location = new System.Drawing.Point(10, 200); this.grpPmB.Size = new System.Drawing.Size(280, 180); this.grpPmB.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             this.lblStepB.Text = "Step Name"; this.lblStepB.Location = new System.Drawing.Point(10, 25);
-            // [수정] 폰트를 Regular로 변경
-            this.txtProcessB.Text = "Process";
-            this.txtProcessB.Location = new System.Drawing.Point(110, 22);
-            this.txtProcessB.Width = 140;
-            this.txtProcessB.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular);
-
+            this.txtProcessB.Text = "Process"; this.txtProcessB.Location = new System.Drawing.Point(110, 22); this.txtProcessB.Width = 140; this.txtProcessB.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular);
             this.lblPressB.Text = "Pressure"; this.lblPressB.Location = new System.Drawing.Point(10, 55);
             this.lblPressValB.Text = "0.0 / 0.0"; this.lblPressValB.Location = new System.Drawing.Point(110, 52); this.lblPressValB.Size = new System.Drawing.Size(140, 20); this.lblPressValB.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle; this.lblPressValB.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.lblProgB.Text = "Progress"; this.lblProgB.Location = new System.Drawing.Point(10, 85);
@@ -210,16 +203,10 @@
             this.btnStartB.Text = "START"; this.btnStartB.Location = new System.Drawing.Point(100, 140); this.btnStartB.Size = new System.Drawing.Size(80, 30); this.btnStartB.BackColor = System.Drawing.Color.White;
             this.grpPmB.Controls.Add(this.lblStepB); this.grpPmB.Controls.Add(this.txtProcessB); this.grpPmB.Controls.Add(this.lblPressB); this.grpPmB.Controls.Add(this.lblPressValB); this.grpPmB.Controls.Add(this.lblProgB); this.grpPmB.Controls.Add(this.progB); this.grpPmB.Controls.Add(this.btnStopB); this.grpPmB.Controls.Add(this.btnStartB);
             this.pnlLeft.Controls.Add(this.grpPmB);
-
-            // PM C
+            // PM C Group
             this.grpPmC.Text = "PM C"; this.grpPmC.Location = new System.Drawing.Point(10, 390); this.grpPmC.Size = new System.Drawing.Size(280, 180); this.grpPmC.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             this.lblStepC.Text = "Step Name"; this.lblStepC.Location = new System.Drawing.Point(10, 25);
-            // [수정] 폰트를 Regular로 변경
-            this.txtProcessC.Text = "Process";
-            this.txtProcessC.Location = new System.Drawing.Point(110, 22);
-            this.txtProcessC.Width = 140;
-            this.txtProcessC.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular);
-
+            this.txtProcessC.Text = "Process"; this.txtProcessC.Location = new System.Drawing.Point(110, 22); this.txtProcessC.Width = 140; this.txtProcessC.Font = new System.Drawing.Font("Arial", 9F, System.Drawing.FontStyle.Regular);
             this.lblPressC.Text = "Pressure"; this.lblPressC.Location = new System.Drawing.Point(10, 55);
             this.lblPressValC.Text = "0.0 / 0.0"; this.lblPressValC.Location = new System.Drawing.Point(110, 52); this.lblPressValC.Size = new System.Drawing.Size(140, 20); this.lblPressValC.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle; this.lblPressValC.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.lblProgC.Text = "Progress"; this.lblProgC.Location = new System.Drawing.Point(10, 85);
@@ -229,10 +216,8 @@
             this.grpPmC.Controls.Add(this.lblStepC); this.grpPmC.Controls.Add(this.txtProcessC); this.grpPmC.Controls.Add(this.lblPressC); this.grpPmC.Controls.Add(this.lblPressValC); this.grpPmC.Controls.Add(this.lblProgC); this.grpPmC.Controls.Add(this.progC); this.grpPmC.Controls.Add(this.btnStopC); this.grpPmC.Controls.Add(this.btnStartC);
             this.pnlLeft.Controls.Add(this.grpPmC);
 
-
-            // --- Right Panel (Form A, B) ---
+            // Right Panel
             this.pnlRight.Dock = System.Windows.Forms.DockStyle.Right; this.pnlRight.Width = 300; this.pnlRight.Padding = new System.Windows.Forms.Padding(10);
-
             // Form A
             this.grpFormA.Text = "Form A"; this.grpFormA.Location = new System.Drawing.Point(10, 10); this.grpFormA.Size = new System.Drawing.Size(280, 250); this.grpFormA.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             this.lblInfoA.Text = "LPB Status: Ready\nMode: MANUAL\nRun: Idle"; this.lblInfoA.Location = new System.Drawing.Point(10, 25); this.lblInfoA.AutoSize = true;
@@ -242,7 +227,6 @@
             this.btnUnloadA.Text = "UNLOAD FOUP"; this.btnUnloadA.Location = new System.Drawing.Point(10, 200); this.btnUnloadA.Size = new System.Drawing.Size(260, 40); this.btnUnloadA.BackColor = System.Drawing.Color.Red; this.btnUnloadA.ForeColor = System.Drawing.Color.White; this.btnUnloadA.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.grpFormA.Controls.Add(this.lblInfoA); this.grpFormA.Controls.Add(this.lblCarrierA); this.grpFormA.Controls.Add(this.txtCarrierA); this.grpFormA.Controls.Add(this.btnLoadA); this.grpFormA.Controls.Add(this.btnUnloadA);
             this.pnlRight.Controls.Add(this.grpFormA);
-
             // Form B
             this.grpFormB.Text = "Form B"; this.grpFormB.Location = new System.Drawing.Point(10, 270); this.grpFormB.Size = new System.Drawing.Size(280, 250); this.grpFormB.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             this.lblInfoB.Text = "LPB Status: Ready\nMode: MANUAL\nRun: Idle"; this.lblInfoB.Location = new System.Drawing.Point(10, 25); this.lblInfoB.AutoSize = true;
@@ -253,8 +237,7 @@
             this.grpFormB.Controls.Add(this.lblInfoB); this.grpFormB.Controls.Add(this.lblCarrierB); this.grpFormB.Controls.Add(this.txtCarrierB); this.grpFormB.Controls.Add(this.btnLoadB); this.grpFormB.Controls.Add(this.btnUnloadB);
             this.pnlRight.Controls.Add(this.grpFormB);
 
-
-            // --- Bottom Panel ---
+            // Bottom
             this.pnlBottom.Dock = System.Windows.Forms.DockStyle.Bottom; this.pnlBottom.Height = 60; this.pnlBottom.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.btnMain.Text = "MAIN"; this.btnMain.Location = new System.Drawing.Point(500, 5); this.btnMain.Size = new System.Drawing.Size(80, 50); this.btnMain.BackColor = System.Drawing.Color.White;
             this.btnUtility.Text = "UTILITY"; this.btnUtility.Location = new System.Drawing.Point(590, 5); this.btnUtility.Size = new System.Drawing.Size(80, 50); this.btnUtility.BackColor = System.Drawing.Color.White;
@@ -262,9 +245,40 @@
             this.pnlBottom.Controls.Add(this.btnMain); this.pnlBottom.Controls.Add(this.btnUtility); this.pnlBottom.Controls.Add(this.btnLog);
 
 
-            // --- Center Panel ---
+            // --- Center Panel (수정된 부분) ---
             this.pnlCenter.Dock = System.Windows.Forms.DockStyle.Fill;
             this.pnlCenter.BackColor = System.Drawing.Color.WhiteSmoke;
+
+            // 여기서부터 좌표는 수동으로 넣었지만, 나중에 디자이너에서 마우스로 옮기면 됩니다.
+            // PM A (좌)
+            this.pnlChamberA.BackColor = System.Drawing.Color.FromArgb(220, 220, 220);
+            this.pnlChamberA.Location = new System.Drawing.Point(100, 300);
+            this.pnlChamberA.Size = new System.Drawing.Size(80, 100);
+            this.pnlCenter.Controls.Add(this.pnlChamberA);
+
+            // PM B (상)
+            this.pnlChamberB.BackColor = System.Drawing.Color.FromArgb(220, 220, 220);
+            this.pnlChamberB.Location = new System.Drawing.Point(300, 100);
+            this.pnlChamberB.Size = new System.Drawing.Size(80, 100);
+            this.pnlCenter.Controls.Add(this.pnlChamberB);
+
+            // PM C (우)
+            this.pnlChamberC.BackColor = System.Drawing.Color.FromArgb(220, 220, 220);
+            this.pnlChamberC.Location = new System.Drawing.Point(500, 300);
+            this.pnlChamberC.Size = new System.Drawing.Size(80, 100);
+            this.pnlCenter.Controls.Add(this.pnlChamberC);
+
+            // FOUP A (좌하단 - 회전된 모양을 패널로는 표현 못하므로 정사각으로 둠)
+            this.pnlFoupA.BackColor = System.Drawing.Color.Silver;
+            this.pnlFoupA.Location = new System.Drawing.Point(150, 500);
+            this.pnlFoupA.Size = new System.Drawing.Size(80, 80);
+            this.pnlCenter.Controls.Add(this.pnlFoupA);
+
+            // FOUP B (우하단)
+            this.pnlFoupB.BackColor = System.Drawing.Color.Silver;
+            this.pnlFoupB.Location = new System.Drawing.Point(450, 500);
+            this.pnlFoupB.Size = new System.Drawing.Size(80, 80);
+            this.pnlCenter.Controls.Add(this.pnlFoupB);
 
             this.pnlTop.ResumeLayout(false);
             this.grpLogin.ResumeLayout(false);
@@ -284,17 +298,18 @@
             this.grpFormB.ResumeLayout(false);
             this.grpFormB.PerformLayout();
             this.pnlBottom.ResumeLayout(false);
+            this.pnlCenter.ResumeLayout(false);
             this.ResumeLayout(false);
         }
 
         #endregion
 
+        // ... (기존 변수 선언들) ...
         private System.Windows.Forms.Panel pnlTop;
         private System.Windows.Forms.Panel pnlLeft;
         private System.Windows.Forms.Panel pnlRight;
         private System.Windows.Forms.Panel pnlCenter;
         private System.Windows.Forms.Panel pnlBottom;
-
         private System.Windows.Forms.GroupBox grpLogin;
         private System.Windows.Forms.TextBox txtId;
         private System.Windows.Forms.TextBox txtPw;
@@ -314,8 +329,6 @@
         private System.Windows.Forms.Panel pnlTime;
         private System.Windows.Forms.Label lblDate;
         private System.Windows.Forms.Label lblTime;
-
-        // PM A
         private System.Windows.Forms.GroupBox grpPmA;
         private System.Windows.Forms.Label lblStepA;
         private System.Windows.Forms.TextBox txtProcessA;
@@ -325,8 +338,6 @@
         private System.Windows.Forms.ProgressBar progA;
         private System.Windows.Forms.Button btnStopA;
         private System.Windows.Forms.Button btnStartA;
-
-        // PM B
         private System.Windows.Forms.GroupBox grpPmB;
         private System.Windows.Forms.Label lblStepB;
         private System.Windows.Forms.TextBox txtProcessB;
@@ -336,8 +347,6 @@
         private System.Windows.Forms.ProgressBar progB;
         private System.Windows.Forms.Button btnStopB;
         private System.Windows.Forms.Button btnStartB;
-
-        // PM C
         private System.Windows.Forms.GroupBox grpPmC;
         private System.Windows.Forms.Label lblStepC;
         private System.Windows.Forms.TextBox txtProcessC;
@@ -347,24 +356,27 @@
         private System.Windows.Forms.ProgressBar progC;
         private System.Windows.Forms.Button btnStopC;
         private System.Windows.Forms.Button btnStartC;
-
-        // Forms
         private System.Windows.Forms.GroupBox grpFormA;
         private System.Windows.Forms.Label lblInfoA;
         private System.Windows.Forms.Label lblCarrierA;
         private System.Windows.Forms.TextBox txtCarrierA;
         private System.Windows.Forms.Button btnLoadA;
         private System.Windows.Forms.Button btnUnloadA;
-
         private System.Windows.Forms.GroupBox grpFormB;
         private System.Windows.Forms.Label lblInfoB;
         private System.Windows.Forms.Label lblCarrierB;
         private System.Windows.Forms.TextBox txtCarrierB;
         private System.Windows.Forms.Button btnLoadB;
         private System.Windows.Forms.Button btnUnloadB;
-
         private System.Windows.Forms.Button btnMain;
         private System.Windows.Forms.Button btnUtility;
         private System.Windows.Forms.Button btnLog;
+
+        // --- [추가됨] 챔버 및 FOUP 패널 ---
+        private System.Windows.Forms.Panel pnlChamberA;
+        private System.Windows.Forms.Panel pnlChamberB;
+        private System.Windows.Forms.Panel pnlChamberC;
+        private System.Windows.Forms.Panel pnlFoupA;
+        private System.Windows.Forms.Panel pnlFoupB;
     }
 }
