@@ -1,12 +1,15 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using MySql.Data.MySqlClient;
 
 namespace SemiGUI
 {
     public partial class Form1 : Form
     {
+        string connectDB = "Server=localhost;Port=3306;Database=SemiGuiData;Uid=root;Pwd=1234;Charset=utf8;";
         private Timer clockTimer;
 
         // 화면 컨트롤 인스턴스
@@ -18,6 +21,7 @@ namespace SemiGUI
         {
             InitializeComponent();
             SetupLogic();
+            SetupDB();
 
             // 1. 유틸리티 화면 생성
             utilityView = new UtilityControl();
@@ -48,6 +52,42 @@ namespace SemiGUI
                 recipeView.Visible = false;
                 utilityView.Visible = true; // Utility로 복귀
             };
+        }
+
+        private void SetupDB()
+        {
+            using (MySqlConnection conn = new MySqlConnection(connectDB))
+            {
+                try
+                {
+                    List<string> query = new List<string>();
+
+                    query.Add("CREATE DATABASE  IF NOT EXISTS `semiguidata`");
+                    query.Add("USE `semiguidata`");
+                    query.Add("DROP TABLE IF EXISTS `logs`");
+                    query.Add(@"CREATE TABLE `logs` (
+                                  `id` INT NOT NULL AUTO_INCREMENT,
+                                  `timestamp` DATETIME NOT NULL,
+                                  `level` VARCHAR(10) NOT NULL,
+                                  `message` TEXT NOT NULL,
+                                  PRIMARY KEY (`id`)
+                                ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+
+                    conn.Open();
+                    MySqlCommand cmd = new MySqlCommand();
+                    cmd.Connection = conn;
+
+                    foreach (string q in query)
+                    {
+                        cmd.CommandText = q;
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show("DB 연결 실패: " + ex.Message);
+                }
+            }
         }
 
         private void SetupLogic()
