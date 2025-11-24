@@ -88,6 +88,11 @@ namespace SemiGUI
                     MySqlCommand cmd = new MySqlCommand();
                     cmd.Connection = conn;
 
+                    MySqlCommand vcmd = new MySqlCommand("select version();", conn);
+                    string version = vcmd.ExecuteScalar().ToString();
+
+                    MessageBox.Show("현재 MySQL 버전: " + version);
+
                     foreach (string q in query)
                     {
                         cmd.CommandText = q;
