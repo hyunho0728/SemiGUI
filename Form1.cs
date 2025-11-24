@@ -12,6 +12,7 @@ namespace SemiGUI
         // 화면 컨트롤 인스턴스
         private UtilityControl utilityView;
         private RecipeControl recipeView;
+        private LogControl logView;
 
         public Form1()
         {
@@ -30,9 +31,16 @@ namespace SemiGUI
             recipeView.Visible = false;
             this.pnlCenter.Controls.Add(recipeView);
 
-            // 3. 이벤트 연결
+            // 3. 로그 화면 생성
+            logView = new LogControl();
+            logView.Dock = DockStyle.Fill;
+            logView.Visible = false;
+            this.pnlCenter.Controls.Add(logView);
+
+            // 4. 이벤트 연결
             this.btnMain.Click += BtnMain_Click;
             this.btnUtility.Click += BtnUtility_Click;
+            this.btnLog.Click += BtnLog_Click;
 
             utilityView.btnRecipe.Click += BtnRecipe_Click;
 
@@ -58,7 +66,7 @@ namespace SemiGUI
         private void pnlCenter_Paint(object sender, PaintEventArgs e)
         {
             // 유틸리티나 레시피 화면이 떠있으면 로봇 그리기 중단
-            if (utilityView.Visible || recipeView.Visible) return;
+            if (utilityView.Visible || recipeView.Visible || logView.Visible) return;
 
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
@@ -100,6 +108,7 @@ namespace SemiGUI
             pnlLeft.Visible = false;
             pnlRight.Visible = false;
             recipeView.Visible = false; // [추가] 레시피 숨김
+            logView.Visible = false;
 
             utilityView.Visible = true;
             utilityView.BringToFront();
@@ -107,13 +116,24 @@ namespace SemiGUI
 
         private void BtnRecipe_Click(object sender, EventArgs e)
         {
-            // 좌우 패널은 이미 숨겨진 상태일 것이지만 안전하게 다시 숨김
             pnlLeft.Visible = false;
             pnlRight.Visible = false;
+            utilityView.Visible = false;
+            logView.Visible = false;
 
-            utilityView.Visible = false; // 유틸리티 숨기고
             recipeView.Visible = true;   // 레시피 보이기
             recipeView.BringToFront();
+        }
+
+        private void BtnLog_Click(object sender, EventArgs e)
+        {
+            pnlLeft.Visible = false;
+            pnlRight.Visible = false;
+            utilityView.Visible = false;
+            recipeView.Visible = false;
+
+            logView.Visible = true;
+            logView.BringToFront();
         }
     }
 }
