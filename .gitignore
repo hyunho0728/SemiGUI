@@ -1,4 +1,13 @@
+# === Docker 관련 (GitHub에 올리면 안 됨) ===
+data/
+mysql_data/ 
+
+# === Visual Studio 관련 (자동 생성되는 파일들) ===
+.vs/
 bin/
 obj/
-.vs/
 *.user
+*.suo
+
+# === 기타 ===
+*.log
