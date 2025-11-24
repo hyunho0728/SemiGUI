@@ -14,15 +14,26 @@
 
         private void InitializeComponent()
         {
+            this.components = new System.ComponentModel.Container();
             System.Windows.Forms.DataGridViewCellStyle gridHeaderStyle = new System.Windows.Forms.DataGridViewCellStyle();
             System.Windows.Forms.DataGridViewCellStyle gridCellStyle = new System.Windows.Forms.DataGridViewCellStyle();
 
             this.lblTitle = new System.Windows.Forms.Label();
 
-            // 필터 컨트롤들
-            this.dtpStart = new System.Windows.Forms.DateTimePicker();
+            // [수정] 날짜는 그대로, 시간은 콤보박스로 변경
+            this.dtpStartDate = new System.Windows.Forms.DateTimePicker();
+            this.cboStartHour = new System.Windows.Forms.ComboBox();
+            this.lblStartColon = new System.Windows.Forms.Label();
+            this.cboStartMin = new System.Windows.Forms.ComboBox();
+
             this.lblTilde = new System.Windows.Forms.Label();
-            this.dtpEnd = new System.Windows.Forms.DateTimePicker();
+
+            this.dtpEndDate = new System.Windows.Forms.DateTimePicker();
+            this.cboEndHour = new System.Windows.Forms.ComboBox();
+            this.lblEndColon = new System.Windows.Forms.Label();
+            this.cboEndMin = new System.Windows.Forms.ComboBox();
+
+            // 필터 및 기능
             this.chkAlarm = new System.Windows.Forms.CheckBox();
             this.chkWarning = new System.Windows.Forms.CheckBox();
             this.chkEvent = new System.Windows.Forms.CheckBox();
@@ -40,6 +51,9 @@
             this.btnRefresh = new System.Windows.Forms.Button();
             this.btnExport = new System.Windows.Forms.Button();
 
+            // 타이머
+            this.tmrRefresh = new System.Windows.Forms.Timer(this.components);
+
             ((System.ComponentModel.ISupportInitialize)(this.dgvLogs)).BeginInit();
             this.SuspendLayout();
 
@@ -50,7 +64,7 @@
             this.Size = new System.Drawing.Size(1280, 720);
 
             // 
-            // lblTitle (LOG)
+            // lblTitle
             // 
             this.lblTitle.AutoSize = true;
             this.lblTitle.Font = new System.Drawing.Font("Arial", 18F, System.Drawing.FontStyle.Bold);
@@ -61,37 +75,101 @@
             this.lblTitle.Text = "LOG";
 
             // 
-            // dtpStart (시작 날짜)
+            // dtpStartDate (날짜)
             // 
-            this.dtpStart.Font = new System.Drawing.Font("Arial", 10F);
-            this.dtpStart.Format = System.Windows.Forms.DateTimePickerFormat.Custom;
-            this.dtpStart.CustomFormat = "yyyy-MM-dd HH:mm:ss";
-            this.dtpStart.Location = new System.Drawing.Point(35, 60);
-            this.dtpStart.Name = "dtpStart";
-            this.dtpStart.Size = new System.Drawing.Size(180, 23);
-            this.dtpStart.TabIndex = 1;
+            this.dtpStartDate.Font = new System.Drawing.Font("Arial", 10F);
+            this.dtpStartDate.Format = System.Windows.Forms.DateTimePickerFormat.Short;
+            this.dtpStartDate.Location = new System.Drawing.Point(35, 60);
+            this.dtpStartDate.Name = "dtpStartDate";
+            this.dtpStartDate.Size = new System.Drawing.Size(110, 23);
+            this.dtpStartDate.TabIndex = 1;
+
+            // 
+            // cboStartHour (시)
+            // 
+            this.cboStartHour.Font = new System.Drawing.Font("Arial", 10F);
+            this.cboStartHour.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboStartHour.FormattingEnabled = true;
+            this.cboStartHour.Location = new System.Drawing.Point(150, 59);
+            this.cboStartHour.Name = "cboStartHour";
+            this.cboStartHour.Size = new System.Drawing.Size(50, 24);
+            this.cboStartHour.TabIndex = 2;
+
+            // 
+            // lblStartColon (:)
+            // 
+            this.lblStartColon.AutoSize = true;
+            this.lblStartColon.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
+            this.lblStartColon.Location = new System.Drawing.Point(203, 63);
+            this.lblStartColon.Name = "lblStartColon";
+            this.lblStartColon.Size = new System.Drawing.Size(12, 16);
+            this.lblStartColon.TabIndex = 3;
+            this.lblStartColon.Text = ":";
+
+            // 
+            // cboStartMin (분)
+            // 
+            this.cboStartMin.Font = new System.Drawing.Font("Arial", 10F);
+            this.cboStartMin.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboStartMin.FormattingEnabled = true;
+            this.cboStartMin.Location = new System.Drawing.Point(218, 59);
+            this.cboStartMin.Name = "cboStartMin";
+            this.cboStartMin.Size = new System.Drawing.Size(50, 24);
+            this.cboStartMin.TabIndex = 4;
 
             // 
             // lblTilde (~)
             // 
             this.lblTilde.AutoSize = true;
             this.lblTilde.Font = new System.Drawing.Font("Arial", 12F, System.Drawing.FontStyle.Bold);
-            this.lblTilde.Location = new System.Drawing.Point(220, 62);
+            this.lblTilde.Location = new System.Drawing.Point(280, 62); // 위치 조정
             this.lblTilde.Name = "lblTilde";
             this.lblTilde.Size = new System.Drawing.Size(18, 19);
-            this.lblTilde.TabIndex = 2;
+            this.lblTilde.TabIndex = 5;
             this.lblTilde.Text = "~";
 
             // 
-            // dtpEnd (종료 날짜)
+            // dtpEndDate (날짜)
             // 
-            this.dtpEnd.Font = new System.Drawing.Font("Arial", 10F);
-            this.dtpEnd.Format = System.Windows.Forms.DateTimePickerFormat.Custom;
-            this.dtpEnd.CustomFormat = "yyyy-MM-dd HH:mm:ss";
-            this.dtpEnd.Location = new System.Drawing.Point(245, 60);
-            this.dtpEnd.Name = "dtpEnd";
-            this.dtpEnd.Size = new System.Drawing.Size(180, 23);
-            this.dtpEnd.TabIndex = 3;
+            this.dtpEndDate.Font = new System.Drawing.Font("Arial", 10F);
+            this.dtpEndDate.Format = System.Windows.Forms.DateTimePickerFormat.Short;
+            this.dtpEndDate.Location = new System.Drawing.Point(310, 60);
+            this.dtpEndDate.Name = "dtpEndDate";
+            this.dtpEndDate.Size = new System.Drawing.Size(110, 23);
+            this.dtpEndDate.TabIndex = 6;
+
+            // 
+            // cboEndHour (시)
+            // 
+            this.cboEndHour.Font = new System.Drawing.Font("Arial", 10F);
+            this.cboEndHour.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboEndHour.FormattingEnabled = true;
+            this.cboEndHour.Location = new System.Drawing.Point(425, 59);
+            this.cboEndHour.Name = "cboEndHour";
+            this.cboEndHour.Size = new System.Drawing.Size(50, 24);
+            this.cboEndHour.TabIndex = 7;
+
+            // 
+            // lblEndColon (:)
+            // 
+            this.lblEndColon.AutoSize = true;
+            this.lblEndColon.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
+            this.lblEndColon.Location = new System.Drawing.Point(478, 63);
+            this.lblEndColon.Name = "lblEndColon";
+            this.lblEndColon.Size = new System.Drawing.Size(12, 16);
+            this.lblEndColon.TabIndex = 8;
+            this.lblEndColon.Text = ":";
+
+            // 
+            // cboEndMin (분)
+            // 
+            this.cboEndMin.Font = new System.Drawing.Font("Arial", 10F);
+            this.cboEndMin.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.cboEndMin.FormattingEnabled = true;
+            this.cboEndMin.Location = new System.Drawing.Point(493, 59);
+            this.cboEndMin.Name = "cboEndMin";
+            this.cboEndMin.Size = new System.Drawing.Size(50, 24);
+            this.cboEndMin.TabIndex = 9;
 
             // 
             // chkAlarm
@@ -101,7 +179,7 @@
             this.chkAlarm.Location = new System.Drawing.Point(35, 95);
             this.chkAlarm.Name = "chkAlarm";
             this.chkAlarm.Size = new System.Drawing.Size(63, 20);
-            this.chkAlarm.TabIndex = 4;
+            this.chkAlarm.TabIndex = 10;
             this.chkAlarm.Text = "Alarm";
             this.chkAlarm.UseVisualStyleBackColor = true;
 
@@ -113,7 +191,7 @@
             this.chkWarning.Location = new System.Drawing.Point(110, 95);
             this.chkWarning.Name = "chkWarning";
             this.chkWarning.Size = new System.Drawing.Size(78, 20);
-            this.chkWarning.TabIndex = 5;
+            this.chkWarning.TabIndex = 11;
             this.chkWarning.Text = "Warning";
             this.chkWarning.UseVisualStyleBackColor = true;
 
@@ -125,7 +203,7 @@
             this.chkEvent.Location = new System.Drawing.Point(200, 95);
             this.chkEvent.Name = "chkEvent";
             this.chkEvent.Size = new System.Drawing.Size(62, 20);
-            this.chkEvent.TabIndex = 6;
+            this.chkEvent.TabIndex = 12;
             this.chkEvent.Text = "Event";
             this.chkEvent.UseVisualStyleBackColor = true;
 
@@ -139,10 +217,10 @@
             "PM A (Oxidation)",
             "PM B (Photo)",
             "PM C (Etch)"});
-            this.cboEquipment.Location = new System.Drawing.Point(900, 59); // 우측 상단 배치
+            this.cboEquipment.Location = new System.Drawing.Point(900, 59);
             this.cboEquipment.Name = "cboEquipment";
             this.cboEquipment.Size = new System.Drawing.Size(200, 24);
-            this.cboEquipment.TabIndex = 7;
+            this.cboEquipment.TabIndex = 13;
             this.cboEquipment.Text = "Equipment (ALL)";
 
             // 
@@ -152,7 +230,7 @@
             this.txtSearch.Location = new System.Drawing.Point(900, 92);
             this.txtSearch.Name = "txtSearch";
             this.txtSearch.Size = new System.Drawing.Size(200, 23);
-            this.txtSearch.TabIndex = 8;
+            this.txtSearch.TabIndex = 14;
             this.txtSearch.Text = "Search Message...";
 
             // 
@@ -163,7 +241,6 @@
             this.dgvLogs.BackgroundColor = System.Drawing.Color.WhiteSmoke;
             this.dgvLogs.BorderStyle = System.Windows.Forms.BorderStyle.Fixed3D;
 
-            // 헤더 스타일
             gridHeaderStyle.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleCenter;
             gridHeaderStyle.BackColor = System.Drawing.Color.FromArgb(230, 230, 230);
             gridHeaderStyle.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
@@ -175,14 +252,12 @@
             this.dgvLogs.ColumnHeadersHeight = 35;
             this.dgvLogs.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
 
-            // 컬럼 추가
             this.dgvLogs.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.colTime,
             this.colType,
             this.colEqp,
             this.colMsg});
 
-            // 셀 스타일
             gridCellStyle.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleLeft;
             gridCellStyle.BackColor = System.Drawing.SystemColors.Window;
             gridCellStyle.Font = new System.Drawing.Font("Arial", 9F);
@@ -199,11 +274,11 @@
             this.dgvLogs.RowHeadersVisible = false;
             this.dgvLogs.RowTemplate.Height = 25;
             this.dgvLogs.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
-            this.dgvLogs.Size = new System.Drawing.Size(1065, 450); // 중앙 그리드 영역
-            this.dgvLogs.TabIndex = 9;
+            this.dgvLogs.Size = new System.Drawing.Size(1065, 450);
+            this.dgvLogs.TabIndex = 15;
 
             // 
-            // colTime (TimeStamp)
+            // colTime
             // 
             this.colTime.HeaderText = "TimeStamp";
             this.colTime.Name = "colTime";
@@ -211,7 +286,7 @@
             this.colTime.Width = 200;
 
             // 
-            // colType (Type)
+            // colType
             // 
             this.colType.HeaderText = "Type";
             this.colType.Name = "colType";
@@ -219,7 +294,7 @@
             this.colType.Width = 100;
 
             // 
-            // colEqp (Equipment)
+            // colEqp
             // 
             this.colEqp.HeaderText = "Equipment";
             this.colEqp.Name = "colEqp";
@@ -227,7 +302,7 @@
             this.colEqp.Width = 150;
 
             // 
-            // colMsg (Message)
+            // colMsg
             // 
             this.colMsg.AutoSizeMode = System.Windows.Forms.DataGridViewAutoSizeColumnMode.Fill;
             this.colMsg.HeaderText = "Message";
@@ -243,7 +318,7 @@
             this.btnRefresh.Location = new System.Drawing.Point(35, 600);
             this.btnRefresh.Name = "btnRefresh";
             this.btnRefresh.Size = new System.Drawing.Size(150, 50);
-            this.btnRefresh.TabIndex = 10;
+            this.btnRefresh.TabIndex = 16;
             this.btnRefresh.Text = "REFRESH";
             this.btnRefresh.UseVisualStyleBackColor = false;
 
@@ -253,15 +328,20 @@
             this.btnExport.BackColor = System.Drawing.Color.White;
             this.btnExport.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
             this.btnExport.Font = new System.Drawing.Font("Arial", 14F, System.Drawing.FontStyle.Bold);
-            this.btnExport.Location = new System.Drawing.Point(950, 600); // 우측 하단
+            this.btnExport.Location = new System.Drawing.Point(950, 600);
             this.btnExport.Name = "btnExport";
             this.btnExport.Size = new System.Drawing.Size(150, 50);
-            this.btnExport.TabIndex = 11;
+            this.btnExport.TabIndex = 17;
             this.btnExport.Text = "EXPORT";
             this.btnExport.UseVisualStyleBackColor = false;
 
             // 
-            // Add Controls to UserControl
+            // tmrRefresh
+            // 
+            this.tmrRefresh.Interval = 1000;
+
+            // 
+            // LogControl Add
             // 
             this.Controls.Add(this.btnExport);
             this.Controls.Add(this.btnRefresh);
@@ -271,9 +351,18 @@
             this.Controls.Add(this.chkEvent);
             this.Controls.Add(this.chkWarning);
             this.Controls.Add(this.chkAlarm);
-            this.Controls.Add(this.dtpEnd);
+
+            // 시간 관련 컨트롤 추가
+            this.Controls.Add(this.cboEndMin);
+            this.Controls.Add(this.lblEndColon);
+            this.Controls.Add(this.cboEndHour);
+            this.Controls.Add(this.dtpEndDate);
             this.Controls.Add(this.lblTilde);
-            this.Controls.Add(this.dtpStart);
+            this.Controls.Add(this.cboStartMin);
+            this.Controls.Add(this.lblStartColon);
+            this.Controls.Add(this.cboStartHour);
+            this.Controls.Add(this.dtpStartDate);
+
             this.Controls.Add(this.lblTitle);
             this.Name = "LogControl";
             ((System.ComponentModel.ISupportInitialize)(this.dgvLogs)).EndInit();
@@ -284,9 +373,20 @@
         #endregion
 
         private System.Windows.Forms.Label lblTitle;
-        private System.Windows.Forms.DateTimePicker dtpStart;
+
+        // 변경된 날짜/시간 컨트롤
+        private System.Windows.Forms.DateTimePicker dtpStartDate;
+        private System.Windows.Forms.ComboBox cboStartHour;
+        private System.Windows.Forms.Label lblStartColon;
+        private System.Windows.Forms.ComboBox cboStartMin;
+
         private System.Windows.Forms.Label lblTilde;
-        private System.Windows.Forms.DateTimePicker dtpEnd;
+
+        private System.Windows.Forms.DateTimePicker dtpEndDate;
+        private System.Windows.Forms.ComboBox cboEndHour;
+        private System.Windows.Forms.Label lblEndColon;
+        private System.Windows.Forms.ComboBox cboEndMin;
+
         private System.Windows.Forms.CheckBox chkAlarm;
         private System.Windows.Forms.CheckBox chkWarning;
         private System.Windows.Forms.CheckBox chkEvent;
@@ -299,5 +399,6 @@
         private System.Windows.Forms.DataGridViewTextBoxColumn colMsg;
         private System.Windows.Forms.Button btnRefresh;
         private System.Windows.Forms.Button btnExport;
+        private System.Windows.Forms.Timer tmrRefresh;
     }
 }
