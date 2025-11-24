@@ -95,7 +95,8 @@ namespace SemiGUI
         private void BtnMain_Click(object sender, EventArgs e)
         {
             utilityView.Visible = false;
-            recipeView.Visible = false; // [추가] 레시피 숨김
+            recipeView.Visible = false;
+            logView.Visible = false;
 
             pnlLeft.Visible = true;
             pnlRight.Visible = true;
