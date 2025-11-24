@@ -49,7 +49,7 @@ namespace SemiGUI
             g.FillEllipse(Brushes.LightGray, cx - 60, cy - 60, 120, 120);
             g.FillEllipse(new SolidBrush(Color.FromArgb(60, 60, 80)), cx - 25, cy - 25, 50, 50);
             g.TranslateTransform(cx, cy);
-            g.RotateTransform(-30);
+            g.RotateTransform(-30); // 로봇 팔 각도
             g.FillRectangle(Brushes.Gray, -15, -80, 30, 80);
             g.ResetTransform();
 
