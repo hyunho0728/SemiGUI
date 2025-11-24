@@ -9,7 +9,7 @@ namespace SemiGUI
 {
     public partial class Form1 : Form
     {
-        string connectDB = "Server=localhost;Port=3306;Database=SemiGuiData;Uid=root;Pwd=1234;Charset=utf8;";
+        string connectDB = "Server=localhost;Port=3306;Uid=root;Pwd=1234;Charset=utf8;";
         private Timer clockTimer;
 
         // 화면 컨트롤 인스턴스
@@ -21,7 +21,7 @@ namespace SemiGUI
         {
             InitializeComponent();
             SetupLogic();
-            SetupDB();
+            InitializeDB();
 
             // 1. 유틸리티 화면 생성
             utilityView = new UtilityControl();
@@ -54,24 +54,35 @@ namespace SemiGUI
             };
         }
 
-        private void SetupDB()
+        private void InitializeDB()
         {
             using (MySqlConnection conn = new MySqlConnection(connectDB))
             {
+                bool inputDummy = true; // 더미 데이터 입력 여부
+
                 try
                 {
                     List<string> query = new List<string>();
 
-                    query.Add("CREATE DATABASE  IF NOT EXISTS `semiguidata`");
-                    query.Add("USE `semiguidata`");
-                    query.Add("DROP TABLE IF EXISTS `logs`");
-                    query.Add(@"CREATE TABLE `logs` (
-                                  `id` INT NOT NULL AUTO_INCREMENT,
-                                  `timestamp` DATETIME NOT NULL,
-                                  `level` VARCHAR(10) NOT NULL,
-                                  `message` TEXT NOT NULL,
-                                  PRIMARY KEY (`id`)
-                                ) ENGINE=InnoDB DEFAULT CHARSET=utf8;");
+                    query.Add("CREATE DATABASE IF NOT EXISTS `SemiGuiData`");
+                    query.Add("USE `SemiGuiData`");
+                    query.Add(@"CREATE TABLE IF NOT EXISTS logs (
+                                id INT AUTO_INCREMENT PRIMARY KEY,
+                                timestamp DATETIME NOT NULL,
+                                type VARCHAR(20) NOT NULL,      -- 'Alarm', 'Warning', 'Event'
+                                equipment VARCHAR(50) NOT NULL, -- 'PM A', 'PM B', etc.
+                                message TEXT NOT NULL
+                                );");
+
+                    if (inputDummy)
+                    {
+                        query.Add(@"INSERT INTO logs (timestamp, type, equipment, message) VALUES 
+                                    (NOW(), 'Event', 'System', 'System Initialized'),
+                                    (DATE_SUB(NOW(), INTERVAL 10 MINUTE), 'Alarm', 'PM A', 'Temperature sensor timeout'),
+                                    (DATE_SUB(NOW(), INTERVAL 30 MINUTE), 'Warning', 'PM B', 'Vacuum pressure unstable'),
+                                    (DATE_SUB(NOW(), INTERVAL 1 HOUR), 'Event', 'PM C', 'Process Started (Recipe_001)'),
+                                    (DATE_SUB(NOW(), INTERVAL 2 HOUR), 'Event', 'System', 'User (Admin) Logged In');");
+                    }
 
                     conn.Open();
                     MySqlCommand cmd = new MySqlCommand();

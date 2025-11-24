@@ -1,6 +1,6 @@
 services:
     SemiGUIDB:
-        image: mysql:8.0
+        image: mysql:5.7
         container_name: SemiGUI_mysql
         environment:
             MYSQL_ROOT_PASSWORD: 1234
