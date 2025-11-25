@@ -1,107 +1,29 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
-using MySql.Data.MySqlClient;
 
 namespace SemiGUI
 {
     public partial class Form1 : Form
     {
-        string connectDB = "Server=localhost;Port=3306;Uid=root;Pwd=1234;Charset=utf8;";
         private Timer clockTimer;
-
-        // 화면 컨트롤 인스턴스
-        private UtilityControl utilityView;
-        private RecipeControl recipeView;
-        private LogControl logView;
 
         public Form1()
         {
             InitializeComponent();
+
+            // 1920x1080 고정
+            this.Size = new Size(1920, 1080);
+            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.MaximizeBox = false;
+            this.StartPosition = FormStartPosition.CenterScreen;
+
             SetupLogic();
-            InitializeDB();
 
-            // 1. 유틸리티 화면 생성
-            utilityView = new UtilityControl();
-            utilityView.Dock = DockStyle.Fill;
-            utilityView.Visible = false;
-            this.pnlCenter.Controls.Add(utilityView);
-
-            // 2. 레시피 화면 생성
-            recipeView = new RecipeControl();
-            recipeView.Dock = DockStyle.Fill;
-            recipeView.Visible = false;
-            this.pnlCenter.Controls.Add(recipeView);
-
-            // 3. 로그 화면 생성
-            logView = new LogControl();
-            logView.Dock = DockStyle.Fill;
-            logView.Visible = false;
-            this.pnlCenter.Controls.Add(logView);
-
-            // 4. 이벤트 연결
             this.btnMain.Click += BtnMain_Click;
-            this.btnUtility.Click += BtnUtility_Click;
-            this.btnLog.Click += BtnLog_Click;
             this.btnRecipe.Click += BtnRecipe_Click;
-
-            recipeView.btnCancel.Click += (s, e) => {
-                BtnMain_Click(null, null);
-            };
-        }
-
-        private void InitializeDB()
-        {
-            using (MySqlConnection conn = new MySqlConnection(connectDB))
-            {
-                bool inputDummy = false; // 더미 데이터 입력 여부
-
-                try
-                {
-                    List<string> query = new List<string>();
-
-                    query.Add("CREATE DATABASE IF NOT EXISTS `SemiGuiData`");
-                    query.Add("USE `SemiGuiData`");
-                    query.Add(@"CREATE TABLE IF NOT EXISTS logs (
-                                id INT AUTO_INCREMENT PRIMARY KEY,
-                                timestamp DATETIME NOT NULL,
-                                type VARCHAR(20) NOT NULL,      -- 'Alarm', 'Warning', 'Event'
-                                equipment VARCHAR(50) NOT NULL, -- 'PM A', 'PM B', etc.
-                                message TEXT NOT NULL
-                                );");
-
-                    if (inputDummy)
-                    {
-                        query.Add(@"INSERT INTO logs (timestamp, type, equipment, message) VALUES 
-                                    (NOW(), 'Event', 'System', 'System Initialized'),
-                                    (DATE_SUB(NOW(), INTERVAL 10 MINUTE), 'Alarm', 'PM A', 'Temperature sensor timeout'),
-                                    (DATE_SUB(NOW(), INTERVAL 30 MINUTE), 'Warning', 'PM B', 'Vacuum pressure unstable'),
-                                    (DATE_SUB(NOW(), INTERVAL 1 HOUR), 'Event', 'PM C', 'Process Started (Recipe_001)'),
-                                    (DATE_SUB(NOW(), INTERVAL 2 HOUR), 'Event', 'System', 'User (Admin) Logged In');");
-                    }
-
-                    conn.Open();
-                    MySqlCommand cmd = new MySqlCommand();
-                    cmd.Connection = conn;
-
-                    //MySqlCommand vcmd = new MySqlCommand("select version();", conn);
-                    //string version = vcmd.ExecuteScalar().ToString();
-                    //MessageBox.Show("현재 MySQL 버전: " + version);
-
-                    foreach (string q in query)
-                    {
-                        cmd.CommandText = q;
-                        cmd.ExecuteNonQuery();
-                    }
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show("DB 연결 실패: " + ex.Message);
-                    Environment.Exit(1);
-                }
-            }
+            this.btnLog.Click += BtnLog_Click;
         }
 
         private void SetupLogic()
@@ -119,16 +41,13 @@ namespace SemiGUI
 
         private void pnlCenter_Paint(object sender, PaintEventArgs e)
         {
-            // 유틸리티나 레시피 화면이 떠있으면 로봇 그리기 중단
-            if (utilityView.Visible || recipeView.Visible || logView.Visible) return;
-
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             int cx = pnlCenter.Width / 2;
             int cy = pnlCenter.Height / 2;
 
-            // 로봇 그리기
+            // 로봇
             g.FillEllipse(Brushes.LightGray, cx - 60, cy - 60, 120, 120);
             g.FillEllipse(new SolidBrush(Color.FromArgb(60, 60, 80)), cx - 25, cy - 25, 50, 50);
             g.TranslateTransform(cx, cy);
@@ -145,46 +64,74 @@ namespace SemiGUI
             g.DrawRectangle(Pens.Gray, lightX, lightY, 30, 90);
         }
 
-        // MAIN 버튼 클릭
         private void BtnMain_Click(object sender, EventArgs e)
         {
-            HideAllViews();
-            // 메인 화면 복구
-            pnlLeft.Visible = true;
-            pnlRight.Visible = true;
             pnlCenter.Invalidate();
         }
 
-        private void BtnUtility_Click(object sender, EventArgs e)
+        // [수정] Recipe 팝업 띄우기 및 이벤트 연결
+        private void BtnRecipe_Click(object sender, EventArgs e)
         {
-            HideAllViews();
-            // 전체 화면 모드
-            pnlLeft.Visible = false;
-            pnlRight.Visible = false;
-            utilityView.Visible = true;
+            Form recipePopup = new Form();
+            recipePopup.Text = "Recipe Management";
+            recipePopup.Size = new Size(1290, 760); // [수정] 1280x720 컨트롤에 맞는 적절한 윈도우 크기
+            recipePopup.StartPosition = FormStartPosition.CenterScreen;
+
+            RecipeControl control = new RecipeControl();
+            control.Dock = DockStyle.Fill;
+
+            // [핵심] 레시피 화면에서 Save 누르면 여기로 데이터가 옴 -> 메인 화면 UI 업데이트
+            control.ApplyToMainRequested += (s, data) => {
+                ApplyRecipeData(data);
+            };
+
+            // 취소/닫기 버튼
+            control.btnCancel.Click += (s2, e2) => recipePopup.Close();
+
+            recipePopup.Controls.Add(control);
+            recipePopup.ShowDialog();
+        }
+
+        // [추가] 메인 화면 값 업데이트 메서드
+        private void ApplyRecipeData(RecipeControl.RecipeModel data)
+        {
+            // PM A (Target, Gas, Time)
+            if (data.PmA_Params != null)
+            {
+                valTargetA.Text = data.PmA_Params[0];
+                valGasA.Text = data.PmA_Params[1];
+                valTimeA.Text = data.PmA_Params[2];
+            }
+
+            // PM B (Align, RPM, Time)
+            if (data.PmB_Params != null)
+            {
+                valAlignB.Text = data.PmB_Params[0];
+                valRpmB.Text = data.PmB_Params[1];
+                valTimeB.Text = data.PmB_Params[2];
+            }
+
+            // PM C (Press, Gas, SpinTime)
+            if (data.PmC_Params != null)
+            {
+                valPressC.Text = data.PmC_Params[0];
+                valGasC.Text = data.PmC_Params[1];
+                valSpinTimeC.Text = data.PmC_Params[2];
+            }
         }
 
         private void BtnLog_Click(object sender, EventArgs e)
         {
-            HideAllViews();
-            pnlLeft.Visible = false;
-            pnlRight.Visible = false;
-            logView.Visible = true;
-        }
+            Form logPopup = new Form();
+            logPopup.Text = "System Log";
+            logPopup.Size = new Size(1280, 760);
+            logPopup.StartPosition = FormStartPosition.CenterScreen;
 
-        // [수정] Recipe 버튼 핸들러 (하단바 버튼용)
-        private void BtnRecipe_Click(object sender, EventArgs e)
-        {
-            HideAllViews();
-            pnlLeft.Visible = false;
-            pnlRight.Visible = false;
-            recipeView.Visible = true;
-        }
-        private void HideAllViews()
-        {
-            utilityView.Visible = false;
-            recipeView.Visible = false;
-            logView.Visible = false;
+            LogControl control = new LogControl();
+            control.Dock = DockStyle.Fill;
+
+            logPopup.Controls.Add(control);
+            logPopup.Show();
         }
     }
 }
