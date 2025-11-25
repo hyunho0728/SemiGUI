@@ -74,7 +74,7 @@ namespace SemiGUI
         {
             Form recipePopup = new Form();
             recipePopup.Text = "Recipe Management";
-            recipePopup.Size = new Size(1290, 760); // [수정] 1280x720 컨트롤에 맞는 적절한 윈도우 크기
+            recipePopup.Size = new Size(1030, 800); // [수정] 1280x720 컨트롤에 맞는 적절한 윈도우 크기
             recipePopup.StartPosition = FormStartPosition.CenterScreen;
 
             RecipeControl control = new RecipeControl();
