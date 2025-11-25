@@ -45,12 +45,10 @@ namespace SemiGUI
             this.btnMain.Click += BtnMain_Click;
             this.btnUtility.Click += BtnUtility_Click;
             this.btnLog.Click += BtnLog_Click;
-
-            utilityView.btnRecipe.Click += BtnRecipe_Click;
+            this.btnRecipe.Click += BtnRecipe_Click;
 
             recipeView.btnCancel.Click += (s, e) => {
-                recipeView.Visible = false;
-                utilityView.Visible = true; // Utility로 복귀
+                BtnMain_Click(null, null);
             };
         }
 
@@ -150,47 +148,43 @@ namespace SemiGUI
         // MAIN 버튼 클릭
         private void BtnMain_Click(object sender, EventArgs e)
         {
-            utilityView.Visible = false;
-            recipeView.Visible = false;
-            logView.Visible = false;
-
+            HideAllViews();
+            // 메인 화면 복구
             pnlLeft.Visible = true;
             pnlRight.Visible = true;
             pnlCenter.Invalidate();
         }
 
-        // UTILITY 버튼 클릭
         private void BtnUtility_Click(object sender, EventArgs e)
         {
+            HideAllViews();
+            // 전체 화면 모드
             pnlLeft.Visible = false;
             pnlRight.Visible = false;
-            recipeView.Visible = false; // [추가] 레시피 숨김
-            logView.Visible = false;
-
             utilityView.Visible = true;
-            utilityView.BringToFront();
-        }
-
-        private void BtnRecipe_Click(object sender, EventArgs e)
-        {
-            pnlLeft.Visible = false;
-            pnlRight.Visible = false;
-            utilityView.Visible = false;
-            logView.Visible = false;
-
-            recipeView.Visible = true;   // 레시피 보이기
-            recipeView.BringToFront();
         }
 
         private void BtnLog_Click(object sender, EventArgs e)
         {
+            HideAllViews();
             pnlLeft.Visible = false;
             pnlRight.Visible = false;
+            logView.Visible = true;
+        }
+
+        // [수정] Recipe 버튼 핸들러 (하단바 버튼용)
+        private void BtnRecipe_Click(object sender, EventArgs e)
+        {
+            HideAllViews();
+            pnlLeft.Visible = false;
+            pnlRight.Visible = false;
+            recipeView.Visible = true;
+        }
+        private void HideAllViews()
+        {
             utilityView.Visible = false;
             recipeView.Visible = false;
-
-            logView.Visible = true;
-            logView.BringToFront();
+            logView.Visible = false;
         }
     }
 }

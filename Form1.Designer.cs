@@ -131,7 +131,10 @@
             this.txtCarrierB = new System.Windows.Forms.TextBox();
             this.btnLoadB = new System.Windows.Forms.Button();
             this.btnUnloadB = new System.Windows.Forms.Button();
+
+            // 하단 버튼
             this.btnMain = new System.Windows.Forms.Button();
+            this.btnRecipe = new System.Windows.Forms.Button(); // [추가]
             this.btnUtility = new System.Windows.Forms.Button();
             this.btnLog = new System.Windows.Forms.Button();
 
@@ -325,11 +328,41 @@
             this.grpFormB.Controls.Add(this.lblInfoB); this.grpFormB.Controls.Add(this.lblCarrierB); this.grpFormB.Controls.Add(this.txtCarrierB); this.grpFormB.Controls.Add(this.btnLoadB); this.grpFormB.Controls.Add(this.btnUnloadB);
             this.pnlRight.Controls.Add(this.grpFormB);
 
-            this.pnlBottom.Dock = System.Windows.Forms.DockStyle.Bottom; this.pnlBottom.Height = 60; this.pnlBottom.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.btnMain.Text = "MAIN"; this.btnMain.Location = new System.Drawing.Point(500, 5); this.btnMain.Size = new System.Drawing.Size(80, 50); this.btnMain.BackColor = System.Drawing.Color.White;
-            this.btnUtility.Text = "UTILITY"; this.btnUtility.Location = new System.Drawing.Point(590, 5); this.btnUtility.Size = new System.Drawing.Size(80, 50); this.btnUtility.BackColor = System.Drawing.Color.White;
-            this.btnLog.Text = "LOG"; this.btnLog.Location = new System.Drawing.Point(680, 5); this.btnLog.Size = new System.Drawing.Size(80, 50); this.btnLog.BackColor = System.Drawing.Color.White;
-            this.pnlBottom.Controls.Add(this.btnMain); this.pnlBottom.Controls.Add(this.btnUtility); this.pnlBottom.Controls.Add(this.btnLog);
+            this.pnlBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
+            this.pnlBottom.Height = 60;
+            this.pnlBottom.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+
+            // 버튼 배치: Main | Recipe | Utility | Log
+            // 중앙 정렬 (Total Width ~350px, Start X ~460)
+
+            // 1. MAIN
+            this.btnMain.Text = "MAIN";
+            this.btnMain.Location = new System.Drawing.Point(460, 5);
+            this.btnMain.Size = new System.Drawing.Size(80, 50);
+            this.btnMain.BackColor = System.Drawing.Color.White;
+
+            // 2. RECIPE (신규 추가)
+            this.btnRecipe.Text = "RECIPE";
+            this.btnRecipe.Location = new System.Drawing.Point(550, 5); // +90
+            this.btnRecipe.Size = new System.Drawing.Size(80, 50);
+            this.btnRecipe.BackColor = System.Drawing.Color.White;
+
+            // 3. UTILITY
+            this.btnUtility.Text = "UTILITY";
+            this.btnUtility.Location = new System.Drawing.Point(640, 5); // +90
+            this.btnUtility.Size = new System.Drawing.Size(80, 50);
+            this.btnUtility.BackColor = System.Drawing.Color.White;
+
+            // 4. LOG
+            this.btnLog.Text = "LOG";
+            this.btnLog.Location = new System.Drawing.Point(730, 5); // +90
+            this.btnLog.Size = new System.Drawing.Size(80, 50);
+            this.btnLog.BackColor = System.Drawing.Color.White;
+
+            this.pnlBottom.Controls.Add(this.btnMain);
+            this.pnlBottom.Controls.Add(this.btnRecipe); // [추가]
+            this.pnlBottom.Controls.Add(this.btnUtility);
+            this.pnlBottom.Controls.Add(this.btnLog);
 
             this.pnlCenter.Dock = System.Windows.Forms.DockStyle.Fill; this.pnlCenter.BackColor = System.Drawing.Color.WhiteSmoke;
             this.pnlChamberA.BackColor = System.Drawing.Color.FromArgb(220, 220, 220); this.pnlChamberA.Location = new System.Drawing.Point(100, 300); this.pnlChamberA.Size = new System.Drawing.Size(80, 100); this.pnlCenter.Controls.Add(this.pnlChamberA);
@@ -464,7 +497,10 @@
         private System.Windows.Forms.TextBox txtCarrierB;
         private System.Windows.Forms.Button btnLoadB;
         private System.Windows.Forms.Button btnUnloadB;
+
+        //하단 버튼 선언
         private System.Windows.Forms.Button btnMain;
+        private System.Windows.Forms.Button btnRecipe; // [추가]
         private System.Windows.Forms.Button btnUtility;
         private System.Windows.Forms.Button btnLog;
 
