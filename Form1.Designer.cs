@@ -15,31 +15,6 @@
         private void InitializeComponent()
         {
             this.pnlTop = new System.Windows.Forms.Panel();
-            this.pnlBottom = new System.Windows.Forms.Panel();
-            this.pnlLeft = new System.Windows.Forms.Panel();
-            this.pnlRight = new System.Windows.Forms.Panel();
-            this.pnlCenter = new System.Windows.Forms.Panel();
-
-            // 챔버 및 FOUP 패널
-            this.pnlChamberA = new System.Windows.Forms.Panel();
-            this.pnlChamberB = new System.Windows.Forms.Panel();
-            this.pnlChamberC = new System.Windows.Forms.Panel();
-            this.pnlFoupA = new System.Windows.Forms.Panel();
-            this.pnlFoupB = new System.Windows.Forms.Panel();
-            this.pnlCassetteL = new System.Windows.Forms.Panel();
-            this.pnlWaferL1 = new System.Windows.Forms.Panel();
-            this.pnlWaferL2 = new System.Windows.Forms.Panel();
-            this.pnlWaferL3 = new System.Windows.Forms.Panel();
-            this.pnlWaferL4 = new System.Windows.Forms.Panel();
-            this.pnlWaferL5 = new System.Windows.Forms.Panel();
-            this.pnlCassetteR = new System.Windows.Forms.Panel();
-            this.pnlWaferR1 = new System.Windows.Forms.Panel();
-            this.pnlWaferR2 = new System.Windows.Forms.Panel();
-            this.pnlWaferR3 = new System.Windows.Forms.Panel();
-            this.pnlWaferR4 = new System.Windows.Forms.Panel();
-            this.pnlWaferR5 = new System.Windows.Forms.Panel();
-
-            // 상단 컨트롤
             this.grpLogin = new System.Windows.Forms.GroupBox();
             this.txtId = new System.Windows.Forms.TextBox();
             this.txtPw = new System.Windows.Forms.TextBox();
@@ -56,11 +31,16 @@
             this.lblHostTitle = new System.Windows.Forms.Label();
             this.lblHostState = new System.Windows.Forms.Label();
             this.btnConnect = new System.Windows.Forms.Button();
+            this.pnlAlarm = new System.Windows.Forms.Panel();
+            this.lblAlarmMsg = new System.Windows.Forms.Label();
             this.pnlTime = new System.Windows.Forms.Panel();
             this.lblDate = new System.Windows.Forms.Label();
             this.lblTime = new System.Windows.Forms.Label();
-
-            // PM A (Oxidation)
+            this.pnlBottom = new System.Windows.Forms.Panel();
+            this.btnMain = new System.Windows.Forms.Button();
+            this.btnRecipe = new System.Windows.Forms.Button();
+            this.btnLog = new System.Windows.Forms.Button();
+            this.pnlLeft = new System.Windows.Forms.Panel();
             this.grpPmA = new System.Windows.Forms.GroupBox();
             this.lblStepA = new System.Windows.Forms.Label();
             this.txtProcessA = new System.Windows.Forms.TextBox();
@@ -76,8 +56,6 @@
             this.progA = new System.Windows.Forms.ProgressBar();
             this.btnStopA = new System.Windows.Forms.Button();
             this.btnStartA = new System.Windows.Forms.Button();
-
-            // PM B (Photo)
             this.grpPmB = new System.Windows.Forms.GroupBox();
             this.lblStepB = new System.Windows.Forms.Label();
             this.txtProcessB = new System.Windows.Forms.TextBox();
@@ -91,8 +69,6 @@
             this.progB = new System.Windows.Forms.ProgressBar();
             this.btnStopB = new System.Windows.Forms.Button();
             this.btnStartB = new System.Windows.Forms.Button();
-
-            // PM C (Etch)
             this.grpPmC = new System.Windows.Forms.GroupBox();
             this.lblStepC = new System.Windows.Forms.Label();
             this.txtProcessC = new System.Windows.Forms.TextBox();
@@ -106,8 +82,7 @@
             this.progC = new System.Windows.Forms.ProgressBar();
             this.btnStopC = new System.Windows.Forms.Button();
             this.btnStartC = new System.Windows.Forms.Button();
-
-            // Forms
+            this.pnlRight = new System.Windows.Forms.Panel();
             this.grpFormA = new System.Windows.Forms.GroupBox();
             this.lblInfoA = new System.Windows.Forms.Label();
             this.lblCarrierA = new System.Windows.Forms.Label();
@@ -120,16 +95,36 @@
             this.txtCarrierB = new System.Windows.Forms.TextBox();
             this.btnLoadB = new System.Windows.Forms.Button();
             this.btnUnloadB = new System.Windows.Forms.Button();
+            this.pnlCenter = new System.Windows.Forms.Panel();
+            this.lblNameA = new System.Windows.Forms.Label();
+            this.lblNameB = new System.Windows.Forms.Label();
+            this.lblNameC = new System.Windows.Forms.Label();
+            this.pnlChamberB = new System.Windows.Forms.Panel();
+            this.pnlChamberA = new System.Windows.Forms.Panel();
+            this.pnlChamberC = new System.Windows.Forms.Panel();
+            this.pnlFoupA = new System.Windows.Forms.Panel();
+            this.pnlFoupB = new System.Windows.Forms.Panel();
+            this.pnlCassetteL = new System.Windows.Forms.Panel();
+            this.pnlWaferL1 = new System.Windows.Forms.Panel();
+            this.pnlWaferL2 = new System.Windows.Forms.Panel();
+            this.pnlWaferL3 = new System.Windows.Forms.Panel();
+            this.pnlWaferL4 = new System.Windows.Forms.Panel();
+            this.pnlWaferL5 = new System.Windows.Forms.Panel();
+            this.pnlCassetteR = new System.Windows.Forms.Panel();
+            this.pnlWaferR1 = new System.Windows.Forms.Panel();
+            this.pnlWaferR2 = new System.Windows.Forms.Panel();
+            this.pnlWaferR3 = new System.Windows.Forms.Panel();
+            this.pnlWaferR4 = new System.Windows.Forms.Panel();
+            this.pnlWaferR5 = new System.Windows.Forms.Panel();
 
-            // 하단 버튼
-            this.btnMain = new System.Windows.Forms.Button();
-            this.btnRecipe = new System.Windows.Forms.Button();
-            this.btnLog = new System.Windows.Forms.Button();
+            // [추가] 리셋 버튼 선언
+            this.btnResetChambers = new System.Windows.Forms.Button();
 
             this.pnlTop.SuspendLayout();
             this.grpLogin.SuspendLayout();
             this.pnlHost.SuspendLayout();
             this.pnlTime.SuspendLayout();
+            this.pnlBottom.SuspendLayout();
             this.pnlLeft.SuspendLayout();
             this.grpPmA.SuspendLayout();
             this.grpPmB.SuspendLayout();
@@ -137,13 +132,14 @@
             this.pnlRight.SuspendLayout();
             this.grpFormA.SuspendLayout();
             this.grpFormB.SuspendLayout();
-            this.pnlBottom.SuspendLayout();
             this.pnlCenter.SuspendLayout();
             this.pnlCassetteL.SuspendLayout();
             this.pnlCassetteR.SuspendLayout();
             this.SuspendLayout();
 
+            // 
             // Form1
+            // 
             this.ClientSize = new System.Drawing.Size(1920, 1080);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -184,6 +180,19 @@
             this.pnlTop.Controls.Add(this.pnlHost);
             this.btnConnect.Text = "CONNECT"; this.btnConnect.Location = new System.Drawing.Point(660, 10); this.btnConnect.Size = new System.Drawing.Size(80, 60); this.btnConnect.BackColor = System.Drawing.Color.Khaki;
             this.pnlTop.Controls.Add(this.btnConnect);
+
+            this.pnlAlarm.Location = new System.Drawing.Point(880, 10);
+            this.pnlAlarm.Size = new System.Drawing.Size(60, 60);
+            this.pnlAlarm.BackColor = System.Drawing.Color.Transparent;
+            this.pnlTop.Controls.Add(this.pnlAlarm);
+
+            this.lblAlarmMsg.Location = new System.Drawing.Point(950, 25);
+            this.lblAlarmMsg.AutoSize = true;
+            this.lblAlarmMsg.Font = new System.Drawing.Font("Arial", 12F, System.Drawing.FontStyle.Bold);
+            this.lblAlarmMsg.ForeColor = System.Drawing.Color.Red;
+            this.lblAlarmMsg.Text = "";
+            this.pnlTop.Controls.Add(this.lblAlarmMsg);
+
             this.pnlTime.Dock = System.Windows.Forms.DockStyle.Right; this.pnlTime.Width = 150; this.pnlTime.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
             this.lblDate.Text = "2025/11/10"; this.lblDate.Location = new System.Drawing.Point(10, 10); this.lblDate.Font = new System.Drawing.Font("Arial", 12);
             this.lblTime.Text = "11:11:11"; this.lblTime.Location = new System.Drawing.Point(10, 35); this.lblTime.Font = new System.Drawing.Font("Arial", 14, System.Drawing.FontStyle.Bold);
@@ -262,7 +271,18 @@
             this.grpPmC.Controls.Add(this.btnStopC); this.grpPmC.Controls.Add(this.btnStartC);
             this.pnlLeft.Controls.Add(this.grpPmC);
 
-            // Right Panel
+            // [추가] RESET CHAMBERS 버튼 생성 및 배치
+            this.btnResetChambers.Text = "RESET CHAMBERS";
+            this.btnResetChambers.Location = new System.Drawing.Point(10, 580);
+            this.btnResetChambers.Size = new System.Drawing.Size(280, 40);
+            this.btnResetChambers.BackColor = System.Drawing.Color.LightCoral;
+            this.btnResetChambers.ForeColor = System.Drawing.Color.White;
+            this.btnResetChambers.Font = new System.Drawing.Font("Arial", 10F, System.Drawing.FontStyle.Bold);
+            this.btnResetChambers.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.pnlLeft.Controls.Add(this.btnResetChambers);
+
+
+            // Right Panel (기존과 동일)
             this.pnlRight.Dock = System.Windows.Forms.DockStyle.Right; this.pnlRight.Width = 300; this.pnlRight.Padding = new System.Windows.Forms.Padding(10);
             this.grpFormA.Text = "Form A"; this.grpFormA.Location = new System.Drawing.Point(10, 10); this.grpFormA.Size = new System.Drawing.Size(280, 250); this.grpFormA.Font = new System.Drawing.Font("Arial", 10, System.Drawing.FontStyle.Bold);
             this.lblInfoA.Text = "LPB Status: Ready\nMode: MANUAL\nRun: Idle"; this.lblInfoA.Location = new System.Drawing.Point(10, 25); this.lblInfoA.AutoSize = true;
@@ -288,45 +308,24 @@
             this.btnLog.Text = "LOG"; this.btnLog.Location = new System.Drawing.Point(1010, 5); this.btnLog.Size = new System.Drawing.Size(80, 50); this.btnLog.BackColor = System.Drawing.Color.White;
             this.pnlBottom.Controls.Add(this.btnMain); this.pnlBottom.Controls.Add(this.btnRecipe); this.pnlBottom.Controls.Add(this.btnLog);
 
-            // Center Panel (1920x1080용 배치: 중앙 확산)
+            // Center Panel
             this.pnlCenter.Dock = System.Windows.Forms.DockStyle.Fill;
             this.pnlCenter.BackColor = System.Drawing.Color.WhiteSmoke;
 
-            // PM B (Top) - Y: 150
-            this.pnlChamberB.BackColor = System.Drawing.Color.FromArgb(220, 220, 220);
-            this.pnlChamberB.Location = new System.Drawing.Point(620, 150);
-            this.pnlChamberB.Size = new System.Drawing.Size(80, 100);
-            this.pnlCenter.Controls.Add(this.pnlChamberB);
+            this.lblNameA.AutoSize = true; this.lblNameA.BackColor = System.Drawing.Color.Transparent; this.lblNameA.Font = new System.Drawing.Font("Arial", 11F, System.Drawing.FontStyle.Bold); this.lblNameA.Name = "lblNameA"; this.lblNameA.Text = "PM A";
+            this.lblNameB.AutoSize = true; this.lblNameB.BackColor = System.Drawing.Color.Transparent; this.lblNameB.Font = new System.Drawing.Font("Arial", 11F, System.Drawing.FontStyle.Bold); this.lblNameB.Name = "lblNameB"; this.lblNameB.Text = "PM B";
+            this.lblNameC.AutoSize = true; this.lblNameC.BackColor = System.Drawing.Color.Transparent; this.lblNameC.Font = new System.Drawing.Font("Arial", 11F, System.Drawing.FontStyle.Bold); this.lblNameC.Name = "lblNameC"; this.lblNameC.Text = "PM C";
+            this.pnlCenter.Controls.Add(this.lblNameA);
+            this.pnlCenter.Controls.Add(this.lblNameB);
+            this.pnlCenter.Controls.Add(this.lblNameC);
 
-            // PM A (Left) - X: 350
-            this.pnlChamberA.BackColor = System.Drawing.Color.FromArgb(220, 220, 220);
-            this.pnlChamberA.Location = new System.Drawing.Point(350, 420);
-            this.pnlChamberA.Size = new System.Drawing.Size(80, 100);
-            this.pnlCenter.Controls.Add(this.pnlChamberA);
+            this.pnlChamberB.BackColor = System.Drawing.Color.FromArgb(220, 220, 220); this.pnlChamberB.Location = new System.Drawing.Point(620, 150); this.pnlChamberB.Size = new System.Drawing.Size(80, 100); this.pnlCenter.Controls.Add(this.pnlChamberB);
+            this.pnlChamberA.BackColor = System.Drawing.Color.FromArgb(220, 220, 220); this.pnlChamberA.Location = new System.Drawing.Point(350, 420); this.pnlChamberA.Size = new System.Drawing.Size(80, 100); this.pnlCenter.Controls.Add(this.pnlChamberA);
+            this.pnlChamberC.BackColor = System.Drawing.Color.FromArgb(220, 220, 220); this.pnlChamberC.Location = new System.Drawing.Point(890, 420); this.pnlChamberC.Size = new System.Drawing.Size(80, 100); this.pnlCenter.Controls.Add(this.pnlChamberC);
+            this.pnlFoupA.BackColor = System.Drawing.Color.Silver; this.pnlFoupA.Location = new System.Drawing.Point(450, 650); this.pnlFoupA.Size = new System.Drawing.Size(80, 80); this.pnlCenter.Controls.Add(this.pnlFoupA);
+            this.pnlFoupB.BackColor = System.Drawing.Color.Silver; this.pnlFoupB.Location = new System.Drawing.Point(790, 650); this.pnlFoupB.Size = new System.Drawing.Size(80, 80); this.pnlCenter.Controls.Add(this.pnlFoupB);
 
-            // PM C (Right) - X: 890
-            this.pnlChamberC.BackColor = System.Drawing.Color.FromArgb(220, 220, 220);
-            this.pnlChamberC.Location = new System.Drawing.Point(890, 420);
-            this.pnlChamberC.Size = new System.Drawing.Size(80, 100);
-            this.pnlCenter.Controls.Add(this.pnlChamberC);
-
-            // FOUP A (Bottom Left)
-            this.pnlFoupA.BackColor = System.Drawing.Color.Silver;
-            this.pnlFoupA.Location = new System.Drawing.Point(450, 650);
-            this.pnlFoupA.Size = new System.Drawing.Size(80, 80);
-            this.pnlCenter.Controls.Add(this.pnlFoupA);
-
-            // FOUP B (Bottom Right)
-            this.pnlFoupB.BackColor = System.Drawing.Color.Silver;
-            this.pnlFoupB.Location = new System.Drawing.Point(790, 650);
-            this.pnlFoupB.Size = new System.Drawing.Size(80, 80);
-            this.pnlCenter.Controls.Add(this.pnlFoupB);
-
-            // Cassette L (Y: 720에서 +50 -> 770)
-            this.pnlCassetteL.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pnlCassetteL.Location = new System.Drawing.Point(560, 770);
-            this.pnlCassetteL.Size = new System.Drawing.Size(80, 80);
-            this.pnlCassetteL.BackColor = System.Drawing.Color.White;
+            this.pnlCassetteL.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle; this.pnlCassetteL.Location = new System.Drawing.Point(560, 770); this.pnlCassetteL.Size = new System.Drawing.Size(80, 80); this.pnlCassetteL.BackColor = System.Drawing.Color.White;
             this.pnlWaferL1.BackColor = System.Drawing.Color.Blue; this.pnlWaferL1.Location = new System.Drawing.Point(5, 10); this.pnlWaferL1.Size = new System.Drawing.Size(70, 8); this.pnlCassetteL.Controls.Add(this.pnlWaferL1);
             this.pnlWaferL2.BackColor = System.Drawing.Color.Blue; this.pnlWaferL2.Location = new System.Drawing.Point(5, 24); this.pnlWaferL2.Size = new System.Drawing.Size(70, 8); this.pnlCassetteL.Controls.Add(this.pnlWaferL2);
             this.pnlWaferL3.BackColor = System.Drawing.Color.Blue; this.pnlWaferL3.Location = new System.Drawing.Point(5, 38); this.pnlWaferL3.Size = new System.Drawing.Size(70, 8); this.pnlCassetteL.Controls.Add(this.pnlWaferL3);
@@ -334,11 +333,7 @@
             this.pnlWaferL5.BackColor = System.Drawing.Color.Blue; this.pnlWaferL5.Location = new System.Drawing.Point(5, 66); this.pnlWaferL5.Size = new System.Drawing.Size(70, 8); this.pnlCassetteL.Controls.Add(this.pnlWaferL5);
             this.pnlCenter.Controls.Add(this.pnlCassetteL);
 
-            // Cassette R (Y: 720에서 +50 -> 770)
-            this.pnlCassetteR.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pnlCassetteR.Location = new System.Drawing.Point(680, 770);
-            this.pnlCassetteR.Size = new System.Drawing.Size(80, 80);
-            this.pnlCassetteR.BackColor = System.Drawing.Color.White;
+            this.pnlCassetteR.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle; this.pnlCassetteR.Location = new System.Drawing.Point(680, 770); this.pnlCassetteR.Size = new System.Drawing.Size(80, 80); this.pnlCassetteR.BackColor = System.Drawing.Color.White;
             this.pnlWaferR1.BackColor = System.Drawing.Color.Black; this.pnlWaferR1.Location = new System.Drawing.Point(5, 10); this.pnlWaferR1.Size = new System.Drawing.Size(70, 8); this.pnlCassetteR.Controls.Add(this.pnlWaferR1);
             this.pnlWaferR2.BackColor = System.Drawing.Color.Black; this.pnlWaferR2.Location = new System.Drawing.Point(5, 24); this.pnlWaferR2.Size = new System.Drawing.Size(70, 8); this.pnlCassetteR.Controls.Add(this.pnlWaferR2);
             this.pnlWaferR3.BackColor = System.Drawing.Color.Black; this.pnlWaferR3.Location = new System.Drawing.Point(5, 38); this.pnlWaferR3.Size = new System.Drawing.Size(70, 8); this.pnlCassetteR.Controls.Add(this.pnlWaferR3);
@@ -347,6 +342,7 @@
             this.pnlCenter.Controls.Add(this.pnlCassetteR);
 
             this.pnlTop.ResumeLayout(false);
+            this.pnlTop.PerformLayout();
             this.grpLogin.ResumeLayout(false);
             this.grpLogin.PerformLayout();
             this.pnlHost.ResumeLayout(false);
@@ -365,6 +361,7 @@
             this.grpFormB.PerformLayout();
             this.pnlBottom.ResumeLayout(false);
             this.pnlCenter.ResumeLayout(false);
+            this.pnlCenter.PerformLayout();
             this.pnlCassetteL.ResumeLayout(false);
             this.pnlCassetteR.ResumeLayout(false);
             this.ResumeLayout(false);
@@ -372,6 +369,7 @@
 
         #endregion
 
+        // ... (기존 패널/컨트롤 선언 생략) ...
         private System.Windows.Forms.Panel pnlTop;
         private System.Windows.Forms.Panel pnlLeft;
         private System.Windows.Forms.Panel pnlRight;
@@ -475,5 +473,15 @@
         private System.Windows.Forms.Panel pnlWaferR3;
         private System.Windows.Forms.Panel pnlWaferR4;
         private System.Windows.Forms.Panel pnlWaferR5;
+
+        private System.Windows.Forms.Label lblNameA;
+        private System.Windows.Forms.Label lblNameB;
+        private System.Windows.Forms.Label lblNameC;
+
+        private System.Windows.Forms.Panel pnlAlarm;
+        private System.Windows.Forms.Label lblAlarmMsg;
+
+        // [추가] 리셋 버튼 선언
+        private System.Windows.Forms.Button btnResetChambers;
     }
 }

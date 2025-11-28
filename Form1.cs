@@ -3,91 +3,151 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using MySql.Data.MySqlClient;
 
 namespace SemiGUI
 {
     public partial class Form1 : Form
     {
+        // ... (기존 변수 유지) ...
         // --- 시스템 상태 변수 ---
         private bool isLoggedIn = false;
-        private bool isAutoRun = false; // 자동 운전 모드 여부
+        private bool isAutoRun = false;
 
         // --- 시뮬레이션용 타이머 ---
-        private Timer clockTimer; // 시계용
-        private Timer sysTimer;   // 장비 제어 스케줄러 (100ms)
+        private Timer clockTimer;
+        private Timer sysTimer;
 
         // --- 데이터 모델 ---
-        private int foupACount = 25; // FOUP A 웨이퍼 수
-        private int foupBCount = 0;  // FOUP B 웨이퍼 수
+        private int foupACount = 5;
+        private int foupBCount = 0;
 
         // 모듈 상태 (0: Idle/Empty, 1: Processing, 2: Complete/Wait_Out)
         private int statusPmA = 0;
         private int statusPmB = 0;
         private int statusPmC = 0;
 
-        // 공정 진행률 (0~100)
         private double progressA = 0;
         private double progressB = 0;
         private double progressC = 0;
 
-        // 레시피 설정값 (초 단위 Time) - 기본값
         private int timePmA = 5;
         private int timePmB = 5;
         private int timePmC = 5;
 
         // 로봇 애니메이션 변수
-        private float robotAngle = 0; // 현재 각도
-        private float targetAngle = 0; // 목표 각도
+        private float robotAngle = 0;
+        private float targetAngle = 0;
         private bool isRobotMoving = false;
-        private bool robotHasWafer = false; // 로봇이 웨이퍼를 들고 있는지
-        private string robotDestination = ""; // 로봇의 현재 목적지 (PMA, PMB...)
-        private string robotSource = "";      // 어디서 가져오는지
+        private bool robotHasWafer = false;
+        private string robotDestination = "";
+        private string robotSource = "";
 
-        // 모듈별 각도 정의 (GDI+ 좌표계 기준: 0=우측, 90=하단, 180=좌측, 270=상단)
         private const float ANG_PMC = 0;
         private const float ANG_FOUP_B = 45;
         private const float ANG_FOUP_A = 135;
         private const float ANG_PMA = 180;
         private const float ANG_PMB = 270;
 
+        private Button btnAutoRun;
+
+        // [추가] 알람 상태 관리 (0: None, 1: Warning, 2: Danger)
+        private int currentAlarmLevel = 0;
+
         public Form1()
         {
             InitializeComponent();
+            InitializeDatabase();
 
-            // 1920x1080 고정
             this.Size = new Size(1920, 1080);
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
             this.StartPosition = FormStartPosition.CenterScreen;
 
             SetupLogic();
+            CreateAutoRunButton();
 
-            // 이벤트 연결
             this.btnMain.Click += BtnMain_Click;
             this.btnRecipe.Click += BtnRecipe_Click;
             this.btnLog.Click += BtnLog_Click;
             this.btnLogin.Click += BtnLogin_Click;
 
-            // CONNECT 버튼을 'AUTO RUN' 시작 버튼으로 활용
-            this.btnConnect.Click += (s, e) => ToggleAutoRun();
+            this.btnConnect.Click += (s, e) => {
+                MessageBox.Show("EtherCAT 연결 기능은 추후 구현 예정입니다.", "System Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            };
 
-            // FOUP Load/Unload (수동 조작)
-            this.btnLoadA.Click += (s, e) => { foupACount = 25; UpdateWaferUI(); };
+            this.btnLoadA.Click += (s, e) => { foupACount = 5; UpdateWaferUI(); };
             this.btnUnloadA.Click += (s, e) => { foupACount = 0; UpdateWaferUI(); };
-            this.btnLoadB.Click += (s, e) => { foupBCount = 25; UpdateWaferUI(); };
+            this.btnLoadB.Click += (s, e) => { foupBCount = 5; UpdateWaferUI(); };
             this.btnUnloadB.Click += (s, e) => { foupBCount = 0; UpdateWaferUI(); };
 
+            // [추가] 챔버 리셋 버튼 이벤트
+            this.btnResetChambers.Click += BtnResetChambers_Click;
+
             this.pnlCenter.SizeChanged += (s, e) => UpdateLayout();
+            this.pnlCenter.Paint += pnlCenter_Paint;
+
+            // [추가] 알람 패널 Paint 이벤트 연결
+            this.pnlAlarm.Paint += pnlAlarm_Paint;
 
             SetLoginState(false);
             UpdateWaferUI();
         }
 
+        // [추가] 챔버 리셋 버튼 핸들러
+        private void BtnResetChambers_Click(object sender, EventArgs e)
+        {
+            statusPmA = 0; progressA = 0;
+            statusPmB = 0; progressB = 0;
+            statusPmC = 0; progressC = 0;
+
+            UpdateProcessUI();
+            pnlCenter.Invalidate(); // 화면 갱신 (챔버 색상 원래대로)
+
+            MessageBox.Show("모든 챔버 상태가 초기화되었습니다.", "Reset Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        // ... (InitializeDatabase, CreateAutoRunButton, SetupLogic 유지) ...
+        private void InitializeDatabase()
+        {
+            string rootConnStr = "Server=localhost;Port=3306;Uid=root;Pwd=1234;Charset=utf8;";
+            try
+            {
+                using (MySqlConnection conn = new MySqlConnection(rootConnStr))
+                {
+                    conn.Open();
+                    using (MySqlCommand cmd = new MySqlCommand("CREATE DATABASE IF NOT EXISTS SemiGuiData", conn)) cmd.ExecuteNonQuery();
+                    conn.ChangeDatabase("SemiGuiData");
+                    using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS logs (id INT AUTO_INCREMENT PRIMARY KEY, timestamp DATETIME NOT NULL, type VARCHAR(50), equipment VARCHAR(100), message TEXT)", conn)) cmd.ExecuteNonQuery();
+                    using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS recipes (name VARCHAR(100) PRIMARY KEY, pmA_target VARCHAR(50), pmA_gas VARCHAR(50), pmA_time VARCHAR(50), pmB_align VARCHAR(50), pmB_rpm VARCHAR(50), pmB_time VARCHAR(50), pmC_press VARCHAR(50), pmC_gas VARCHAR(50), pmC_time VARCHAR(50))", conn)) cmd.ExecuteNonQuery();
+                    using (MySqlCommand cmd = new MySqlCommand("SELECT COUNT(*) FROM recipes", conn))
+                    {
+                        if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
+                        {
+                            string insertSql = "INSERT INTO recipes VALUES ('Standard_Process', '1000.0', '500', '60', '0.001', '3000', '45', '15', '100', '120'), ('High_Temp_Fast', '1200.0', '800', '30', '0.002', '4000', '30', '20', '200', '90')";
+                            using (MySqlCommand insertCmd = new MySqlCommand(insertSql, conn)) insertCmd.ExecuteNonQuery();
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { MessageBox.Show($"DB 초기화 실패 (MySQL 서버 확인 필요):\n{ex.Message}", "DB Init Error", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        }
+
+        private void CreateAutoRunButton()
+        {
+            btnAutoRun = new Button();
+            btnAutoRun.Text = "AUTO RUN";
+            btnAutoRun.Size = new Size(100, 60);
+            btnAutoRun.Location = new Point(750, 10);
+            btnAutoRun.BackColor = Color.LightGray;
+            btnAutoRun.Font = new Font("Arial", 10, FontStyle.Bold);
+            btnAutoRun.Click += (s, e) => ToggleAutoRun();
+            this.pnlTop.Controls.Add(btnAutoRun);
+        }
+
         private void SetupLogic()
         {
             this.DoubleBuffered = true;
-
-            // 1. 시계 타이머
             clockTimer = new Timer();
             clockTimer.Interval = 1000;
             clockTimer.Tick += (s, e) => {
@@ -95,37 +155,35 @@ namespace SemiGUI
                 if (lblDate != null) lblDate.Text = DateTime.Now.ToString("yyyy/MM/dd");
             };
             clockTimer.Start();
-
-            // 2. 시스템 제어 스케줄러 (핵심 로직)
             sysTimer = new Timer();
-            sysTimer.Interval = 50; // 0.05초마다 갱신 (부드러운 애니메이션 + 로직)
+            sysTimer.Interval = 50;
             sysTimer.Tick += SysTimer_Tick;
-            // Auto Run 시작 시 Start 함
         }
 
-        // =============================================================
-        // [핵심 로직] 스케줄러 & 상태 머신
-        // =============================================================
         private void SysTimer_Tick(object sender, EventArgs e)
         {
-            // 1. 로봇이 움직이는 중이면 애니메이션만 처리하고 리턴
+            // [추가] 알람 로직 체크
+            CheckAlarms();
+
+            // 1. 로봇이 움직이는 중이면 애니메이션만 처리
             if (isRobotMoving)
             {
                 AnimateRobot();
-                pnlCenter.Invalidate(); // 다시 그리기
+                pnlCenter.Invalidate();
                 return;
             }
 
-            // 2. 공정 진행 시뮬레이션 (로봇이 안 움직일 때 처리)
+            // 2. 공정 진행
             SimulateProcess();
 
-            // 3. 스케줄링 (다음 동작 결정) - 우선순위에 따라 결정
-            // 우선순위: Unload C -> Move BtoC -> Move AtoB -> Load A
-
-            // [CASE 1] PM C 완료 -> FOUP B로 배출
+            // 3. 스케줄링
+            // [CASE 1] PM C 완료 -> FOUP B로 배출 (단, FOUP B가 꽉 차있으면 이동 불가)
             if (statusPmC == 2 && !robotHasWafer)
             {
-                StartRobotMove("PMC", "FOUP_B");
+                if (foupBCount < 5) // [중요] 꽉 차지 않았을 때만 이동 시작
+                {
+                    StartRobotMove("PMC", "FOUP_B");
+                }
             }
             // [CASE 2] PM B 완료 & PM C 비어있음 -> B에서 C로 이동
             else if (statusPmB == 2 && statusPmC == 0 && !robotHasWafer)
@@ -137,67 +195,132 @@ namespace SemiGUI
             {
                 StartRobotMove("PMA", "PMB");
             }
-            // [CASE 4] FOUP A에 웨이퍼 있음 & PM A 비어있음 -> 투입 (파이프라인)
+            // [CASE 4] FOUP A에 웨이퍼 있음 & PM A 비어있음 -> 투입
             else if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
             {
                 StartRobotMove("FOUP_A", "PMA");
             }
 
-            // UI 업데이트 (프로그레스바 등)
             UpdateProcessUI();
             pnlCenter.Invalidate();
         }
 
-        // 로봇 이동 명령 시작
+        // [추가] 알람 체크 메서드
+        private void CheckAlarms()
+        {
+            int prevLevel = currentAlarmLevel;
+            currentAlarmLevel = 0;
+            string msg = "";
+
+            // Danger 조건: FOUP B가 꽉 찼는데 PM C에서 배출 대기 중 (병목 발생)
+            if (foupBCount >= 5 && statusPmC == 2)
+            {
+                currentAlarmLevel = 2; // Danger
+                msg = "DANGER: FOUP B Full!";
+            }
+            // Warning 조건: FOUP A 소진
+            else if (foupACount == 0)
+            {
+                currentAlarmLevel = 1; // Warning
+                msg = "WARNING: FOUP A Empty";
+            }
+            else
+            {
+                currentAlarmLevel = 0; // Normal
+                msg = "";
+            }
+
+            // 상태 변경 시 UI 갱신
+            if (prevLevel != currentAlarmLevel || lblAlarmMsg.Text != msg)
+            {
+                lblAlarmMsg.Text = msg;
+                pnlAlarm.Invalidate(); // 알람 패널 다시 그리기
+            }
+        }
+
+        // [추가] 알람 아이콘 그리기 이벤트
+        private void pnlAlarm_Paint(object sender, PaintEventArgs e)
+        {
+            if (currentAlarmLevel == 0) return; // 정상일 땐 안 그림
+
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // 삼각형 좌표 계산 (패널 크기 60x60 기준)
+            Point[] trianglePoints = {
+                new Point(30, 5),   // Top
+                new Point(5, 55),   // Bottom Left
+                new Point(55, 55)   // Bottom Right
+            };
+
+            if (currentAlarmLevel == 2) // Danger (Red Triangle)
+            {
+                g.FillPolygon(Brushes.Red, trianglePoints);
+                // 흰색 느낌표
+                using (Font f = new Font("Arial", 24, FontStyle.Bold))
+                {
+                    SizeF size = g.MeasureString("!", f);
+                    g.DrawString("!", f, Brushes.White, 30 - size.Width / 2, 35 - size.Height / 2);
+                }
+            }
+            else if (currentAlarmLevel == 1) // Warning (Yellow Triangle)
+            {
+                g.FillPolygon(Brushes.Gold, trianglePoints);
+                // 흰색 느낌표
+                using (Font f = new Font("Arial", 24, FontStyle.Bold))
+                {
+                    SizeF size = g.MeasureString("!", f);
+                    g.DrawString("!", f, Brushes.White, 30 - size.Width / 2, 35 - size.Height / 2);
+                }
+            }
+        }
+
         private void StartRobotMove(string src, string dest)
         {
             robotSource = src;
             robotDestination = dest;
             isRobotMoving = true;
-            robotHasWafer = false; // 이동 시작할 땐 일단 빈손 (가서 잡음) or 잡고 이동
-
-            // 소스 위치에 따른 목표 각도 설정 (가질러 가기)
+            robotHasWafer = false;
             targetAngle = GetAngle(src);
         }
 
-        // 로봇 애니메이션 로직
         private void AnimateRobot()
         {
-            // 각도 부드럽게 변경 (단순화: 5도씩 회전)
             float speed = 10.0f;
+            float diff = targetAngle - robotAngle;
 
-            if (Math.Abs(robotAngle - targetAngle) > speed)
+            while (diff <= -180) diff += 360;
+            while (diff > 180) diff -= 360;
+
+            if (Math.Abs(diff) > speed)
             {
-                if (robotAngle < targetAngle) robotAngle += speed;
+                if (diff > 0) robotAngle += speed;
                 else robotAngle -= speed;
+
+                if (robotAngle >= 360) robotAngle -= 360;
+                if (robotAngle < 0) robotAngle += 360;
             }
             else
             {
-                robotAngle = targetAngle; // 도달
+                robotAngle = targetAngle;
 
-                // [1단계] 소스 도착 -> 웨이퍼 집기
                 if (!robotHasWafer)
                 {
                     robotHasWafer = true;
-                    // 소스에서 웨이퍼 제거 로직
                     if (robotSource == "FOUP_A") foupACount--;
-                    else if (robotSource == "PMA") statusPmA = 0; // 비움
+                    else if (robotSource == "PMA") statusPmA = 0;
                     else if (robotSource == "PMB") statusPmB = 0;
                     else if (robotSource == "PMC") statusPmC = 0;
 
-                    UpdateWaferUI(); // 카세트 UI 갱신
-
-                    // 이제 목적지로 이동 설정
+                    UpdateWaferUI();
                     targetAngle = GetAngle(robotDestination);
                 }
-                // [2단계] 목적지 도착 -> 웨이퍼 내려놓기
                 else
                 {
                     robotHasWafer = false;
-                    isRobotMoving = false; // 이동 완료
+                    isRobotMoving = false;
 
-                    // 목적지에 웨이퍼 투입 로직
-                    if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; } // 공정 시작
+                    if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
                     else if (robotDestination == "PMB") { statusPmB = 1; progressB = 0; }
                     else if (robotDestination == "PMC") { statusPmC = 1; progressC = 0; }
                     else if (robotDestination == "FOUP_B") { foupBCount++; UpdateWaferUI(); }
@@ -205,22 +328,18 @@ namespace SemiGUI
             }
         }
 
-        // 공정 진행 시뮬레이션
         private void SimulateProcess()
         {
-            // PM A
-            if (statusPmA == 1) // Processing
+            if (statusPmA == 1)
             {
-                progressA += (100.0 / (timePmA * 20)); // 50ms 호출 기준, timePmA(초) 동안 100% 도달
-                if (progressA >= 100) { progressA = 100; statusPmA = 2; } // 완료
+                progressA += (100.0 / (timePmA * 20));
+                if (progressA >= 100) { progressA = 100; statusPmA = 2; }
             }
-            // PM B
             if (statusPmB == 1)
             {
                 progressB += (100.0 / (timePmB * 20));
                 if (progressB >= 100) { progressB = 100; statusPmB = 2; }
             }
-            // PM C
             if (statusPmC == 1)
             {
                 progressC += (100.0 / (timePmC * 20));
@@ -241,46 +360,38 @@ namespace SemiGUI
             }
         }
 
-        // =============================================================
-        // UI 업데이트 Helper
-        // =============================================================
         private void ToggleAutoRun()
         {
             isAutoRun = !isAutoRun;
             if (isAutoRun)
             {
-                btnConnect.Text = "STOP";
-                btnConnect.BackColor = Color.LightCoral;
+                btnAutoRun.Text = "STOP";
+                btnAutoRun.BackColor = Color.LightCoral;
                 sysTimer.Start();
             }
             else
             {
-                btnConnect.Text = "CONNECT"; // Start/AutoRun 의미
-                btnConnect.BackColor = Color.Khaki;
+                btnAutoRun.Text = "AUTO RUN";
+                btnAutoRun.BackColor = Color.LightGray;
                 sysTimer.Stop();
             }
         }
 
         private void UpdateProcessUI()
         {
-            // PM A
             progA.Value = (int)Math.Min(progressA, 100);
             pnlChamberA.BackColor = GetStateColor(statusPmA);
-
-            // PM B
             progB.Value = (int)Math.Min(progressB, 100);
             pnlChamberB.BackColor = GetStateColor(statusPmB);
-
-            // PM C
             progC.Value = (int)Math.Min(progressC, 100);
             pnlChamberC.BackColor = GetStateColor(statusPmC);
         }
 
         private Color GetStateColor(int state)
         {
-            if (state == 0) return Color.FromArgb(220, 220, 220); // Idle (Gray)
-            if (state == 1) return Color.LimeGreen; // Processing (Green)
-            if (state == 2) return Color.Yellow; // Complete/Wait (Yellow)
+            if (state == 0) return Color.FromArgb(220, 220, 220);
+            if (state == 1) return Color.LimeGreen;
+            if (state == 2) return Color.Yellow;
             return Color.Gray;
         }
 
@@ -289,49 +400,39 @@ namespace SemiGUI
             txtCarrierA.Text = $"FOUP_LOT01 ({foupACount})";
             txtCarrierB.Text = $"FOUP_LOT02 ({foupBCount})";
 
-            // FOUP A 그래픽 (단순화: 5개 슬롯만 표현, 개수에 따라 색칠)
-            pnlWaferL1.BackColor = foupACount >= 21 ? Color.Blue : Color.Black;
-            pnlWaferL2.BackColor = foupACount >= 16 ? Color.Blue : Color.Black;
-            pnlWaferL3.BackColor = foupACount >= 11 ? Color.Blue : Color.Black;
-            pnlWaferL4.BackColor = foupACount >= 6 ? Color.Blue : Color.Black;
+            pnlWaferL1.BackColor = foupACount >= 5 ? Color.Blue : Color.Black;
+            pnlWaferL2.BackColor = foupACount >= 4 ? Color.Blue : Color.Black;
+            pnlWaferL3.BackColor = foupACount >= 3 ? Color.Blue : Color.Black;
+            pnlWaferL4.BackColor = foupACount >= 2 ? Color.Blue : Color.Black;
             pnlWaferL5.BackColor = foupACount >= 1 ? Color.Blue : Color.Black;
 
-            // FOUP B 그래픽
-            pnlWaferR1.BackColor = foupBCount >= 21 ? Color.Blue : Color.Black;
-            pnlWaferR2.BackColor = foupBCount >= 16 ? Color.Blue : Color.Black;
-            pnlWaferR3.BackColor = foupBCount >= 11 ? Color.Blue : Color.Black;
-            pnlWaferR4.BackColor = foupBCount >= 6 ? Color.Blue : Color.Black;
+            pnlWaferR1.BackColor = foupBCount >= 5 ? Color.Blue : Color.Black;
+            pnlWaferR2.BackColor = foupBCount >= 4 ? Color.Blue : Color.Black;
+            pnlWaferR3.BackColor = foupBCount >= 3 ? Color.Blue : Color.Black;
+            pnlWaferR4.BackColor = foupBCount >= 2 ? Color.Blue : Color.Black;
             pnlWaferR5.BackColor = foupBCount >= 1 ? Color.Blue : Color.Black;
         }
 
-        // [중요] RecipeControl에서 넘어온 데이터 적용
+        // ... (ApplyRecipeData, UpdateLayout, SetLoginState, BtnLogin_Click, pnlCenter_Paint 등 기존 메서드 유지) ...
         private void ApplyRecipeData(RecipeControl.RecipeModel data)
         {
             if (data.PmA_Params != null)
             {
-                valTargetA.Text = data.PmA_Params[0];
-                valGasA.Text = data.PmA_Params[1];
-                valTimeA.Text = data.PmA_Params[2];
-                // [핵심] 실제 로직 변수에 반영 (int.TryParse 등으로 안전하게 변환 필요)
+                valTargetA.Text = data.PmA_Params[0]; valGasA.Text = data.PmA_Params[1]; valTimeA.Text = data.PmA_Params[2];
                 int.TryParse(data.PmA_Params[2], out timePmA);
             }
             if (data.PmB_Params != null)
             {
-                valAlignB.Text = data.PmB_Params[0];
-                valRpmB.Text = data.PmB_Params[1];
-                valTimeB.Text = data.PmB_Params[2];
+                valAlignB.Text = data.PmB_Params[0]; valRpmB.Text = data.PmB_Params[1]; valTimeB.Text = data.PmB_Params[2];
                 int.TryParse(data.PmB_Params[2], out timePmB);
             }
             if (data.PmC_Params != null)
             {
-                valPressC.Text = data.PmC_Params[0];
-                valGasC.Text = data.PmC_Params[1];
-                valSpinTimeC.Text = data.PmC_Params[2];
+                valPressC.Text = data.PmC_Params[0]; valGasC.Text = data.PmC_Params[1]; valSpinTimeC.Text = data.PmC_Params[2];
                 int.TryParse(data.PmC_Params[2], out timePmC);
             }
         }
 
-        // ... (이하 기존 레이아웃 및 로그인 관련 코드 유지) ...
         private void UpdateLayout()
         {
             if (pnlCenter.Width == 0 || pnlCenter.Height == 0) return;
@@ -345,6 +446,10 @@ namespace SemiGUI
             pnlFoupB.Location = new Point(cx + 120, cy + 180);
             pnlCassetteL.Location = new Point(cx - 100, cy + 330);
             pnlCassetteR.Location = new Point(cx + 20, cy + 330);
+
+            if (lblNameA != null) lblNameA.Location = new Point(pnlChamberA.Left + (pnlChamberA.Width - lblNameA.Width) / 2, pnlChamberA.Top - 25);
+            if (lblNameB != null) lblNameB.Location = new Point(pnlChamberB.Left + (pnlChamberB.Width - lblNameB.Width) / 2, pnlChamberB.Top - 25);
+            if (lblNameC != null) lblNameC.Location = new Point(pnlChamberC.Left + (pnlChamberC.Width - lblNameC.Width) / 2, pnlChamberC.Top - 25);
         }
 
         private void SetLoginState(bool login)
@@ -390,31 +495,26 @@ namespace SemiGUI
             int cx = pnlCenter.Width / 2;
             int cy = pnlCenter.Height / 2;
 
-            // 로봇 본체
             g.FillEllipse(Brushes.LightGray, cx - 60, cy - 60, 120, 120);
             g.FillEllipse(new SolidBrush(Color.FromArgb(60, 60, 80)), cx - 25, cy - 25, 50, 50);
 
-            // 로봇 팔 (회전 적용)
             g.TranslateTransform(cx, cy);
-            g.RotateTransform(robotAngle); // 애니메이션 각도 적용
+            g.RotateTransform(robotAngle);
 
-            // 팔 링크
-            g.FillRectangle(Brushes.Gray, 0, -15, 120, 30); // 길이가 좀 더 긴 팔 (중앙에서 뻗어나감)
+            g.FillRectangle(Brushes.Gray, 0, -15, 120, 30);
 
-            // 웨이퍼 (로봇이 들고 있을 때만 그림)
             if (robotHasWafer)
             {
-                g.FillEllipse(Brushes.CornflowerBlue, 90, -20, 40, 40); // 팔 끝에 웨이퍼 표시
+                g.FillEllipse(Brushes.CornflowerBlue, 90, -20, 40, 40);
             }
 
             g.ResetTransform();
 
-            // 신호등
             int lightX = pnlCenter.Width - 60;
             int lightY = 50;
-            g.FillRectangle(isAutoRun ? Brushes.Maroon : Brushes.Red, lightX, lightY, 30, 30); // Stop 상태일 때 Red 밝게
+            g.FillRectangle(isAutoRun ? Brushes.Maroon : Brushes.Red, lightX, lightY, 30, 30);
             g.FillRectangle(Brushes.Olive, lightX, lightY + 30, 30, 30);
-            g.FillRectangle(isAutoRun ? Brushes.Lime : Brushes.Green, lightX, lightY + 60, 30, 30); // Run 상태일 때 Green 밝게
+            g.FillRectangle(isAutoRun ? Brushes.Lime : Brushes.Green, lightX, lightY + 60, 30, 30);
             g.DrawRectangle(Pens.Gray, lightX, lightY, 30, 90);
         }
 
@@ -434,14 +534,6 @@ namespace SemiGUI
             LogControl lc = new LogControl() { Dock = DockStyle.Fill };
             lPop.Controls.Add(lc);
             lPop.Show();
-        }
-
-        // 웨이퍼 상태 변경 (Load/Unload 버튼용 - 기존 메서드 유지)
-        private void SetFoupState(string type, bool loaded)
-        {
-            if (type == "A") foupACount = loaded ? 25 : 0;
-            else foupBCount = loaded ? 25 : 0;
-            UpdateWaferUI();
         }
     }
 }
