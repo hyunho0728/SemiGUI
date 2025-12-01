@@ -1087,8 +1087,6 @@ namespace SemiGUI
         {
             Form robotForm = new Form() { Text = "Robot", Size = new Size(1263, 759), StartPosition = FormStartPosition.CenterScreen };
             RobotControl rc = new RobotControl() { Dock = DockStyle.Fill };
-            rc.ApplyToMainRequested += (s2, data) => ApplyRecipeData(data);
-            rc.btnCancel.Click += (s2, e2) => robotForm.Close();
             robotForm.Controls.Add(rc);
             robotForm.ShowDialog();
         }
