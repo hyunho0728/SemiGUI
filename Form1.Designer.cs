@@ -37,6 +37,7 @@
             this.lblDate = new System.Windows.Forms.Label();
             this.lblTime = new System.Windows.Forms.Label();
             this.pnlBottom = new System.Windows.Forms.Panel();
+            this.btnRobot = new System.Windows.Forms.Button();
             this.btnMain = new System.Windows.Forms.Button();
             this.btnRecipe = new System.Windows.Forms.Button();
             this.btnLog = new System.Windows.Forms.Button();
@@ -119,7 +120,6 @@
             this.pnlWaferR3 = new System.Windows.Forms.Panel();
             this.pnlWaferR4 = new System.Windows.Forms.Panel();
             this.pnlWaferR5 = new System.Windows.Forms.Panel();
-            this.btnRobot = new System.Windows.Forms.Button();
             this.pnlTop.SuspendLayout();
             this.grpLogin.SuspendLayout();
             this.pnlHost.SuspendLayout();
@@ -361,10 +361,21 @@
             this.pnlBottom.Controls.Add(this.btnLog);
             this.pnlBottom.Controls.Add(this.btnConfig);
             this.pnlBottom.Dock = System.Windows.Forms.DockStyle.Bottom;
-            this.pnlBottom.Location = new System.Drawing.Point(0, 1020);
+            this.pnlBottom.Location = new System.Drawing.Point(0, 1001);
             this.pnlBottom.Name = "pnlBottom";
             this.pnlBottom.Size = new System.Drawing.Size(1920, 60);
             this.pnlBottom.TabIndex = 3;
+            // 
+            // btnRobot
+            // 
+            this.btnRobot.BackColor = System.Drawing.Color.White;
+            this.btnRobot.Location = new System.Drawing.Point(1829, 5);
+            this.btnRobot.Name = "btnRobot";
+            this.btnRobot.Size = new System.Drawing.Size(80, 50);
+            this.btnRobot.TabIndex = 4;
+            this.btnRobot.Text = "ROBOT";
+            this.btnRobot.UseVisualStyleBackColor = false;
+            this.btnRobot.Click += new System.EventHandler(this.btnRobot_Click);
             // 
             // btnMain
             // 
@@ -417,7 +428,7 @@
             this.pnlLeft.Location = new System.Drawing.Point(0, 80);
             this.pnlLeft.Name = "pnlLeft";
             this.pnlLeft.Padding = new System.Windows.Forms.Padding(10);
-            this.pnlLeft.Size = new System.Drawing.Size(300, 940);
+            this.pnlLeft.Size = new System.Drawing.Size(300, 921);
             this.pnlLeft.TabIndex = 2;
             // 
             // btnResetRobot
@@ -895,7 +906,7 @@
             this.pnlRight.Location = new System.Drawing.Point(1620, 80);
             this.pnlRight.Name = "pnlRight";
             this.pnlRight.Padding = new System.Windows.Forms.Padding(10);
-            this.pnlRight.Size = new System.Drawing.Size(300, 940);
+            this.pnlRight.Size = new System.Drawing.Size(300, 921);
             this.pnlRight.TabIndex = 1;
             // 
             // grpFormA
@@ -1042,7 +1053,7 @@
             this.pnlCenter.Dock = System.Windows.Forms.DockStyle.Fill;
             this.pnlCenter.Location = new System.Drawing.Point(300, 80);
             this.pnlCenter.Name = "pnlCenter";
-            this.pnlCenter.Size = new System.Drawing.Size(1320, 940);
+            this.pnlCenter.Size = new System.Drawing.Size(1320, 921);
             this.pnlCenter.TabIndex = 0;
             // 
             // lblNameA
@@ -1226,21 +1237,10 @@
             this.pnlWaferR5.Size = new System.Drawing.Size(70, 8);
             this.pnlWaferR5.TabIndex = 4;
             // 
-            // btnRobot
-            // 
-            this.btnRobot.BackColor = System.Drawing.Color.White;
-            this.btnRobot.Location = new System.Drawing.Point(1829, 5);
-            this.btnRobot.Name = "btnRobot";
-            this.btnRobot.Size = new System.Drawing.Size(80, 50);
-            this.btnRobot.TabIndex = 4;
-            this.btnRobot.Text = "ROBOT";
-            this.btnRobot.UseVisualStyleBackColor = false;
-            this.btnRobot.Click += new System.EventHandler(this.btnRobot_Click);
-            // 
             // Form1
             // 
             this.BackColor = System.Drawing.Color.White;
-            this.ClientSize = new System.Drawing.Size(1920, 1080);
+            this.ClientSize = new System.Drawing.Size(1920, 1061);
             this.Controls.Add(this.pnlCenter);
             this.Controls.Add(this.pnlRight);
             this.Controls.Add(this.pnlLeft);

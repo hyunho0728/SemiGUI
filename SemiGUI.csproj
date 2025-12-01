@@ -125,7 +125,7 @@
       <DependentUpon>RecipeControl.cs</DependentUpon>
     </Compile>
     <Compile Include="RobotControl.cs">
-      <SubType>Form</SubType>
+      <SubType>UserControl</SubType>
     </Compile>
     <Compile Include="RobotControl.Designer.cs">
       <DependentUpon>RobotControl.cs</DependentUpon>

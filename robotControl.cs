@@ -10,18 +10,17 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
-using IEG3268_Dll;
 using static Google.Protobuf.Reflection.FieldDescriptorProto.Types;
 
-namespace WindowsFormsApp1
+namespace SemiGUI
 {
-    public partial class Form1 : Form
+    public partial class RobotControl : UserControl
     {
         IEG3268 EtherCAT_M = new IEG3268();
 
         private Int64 safeRangePulse = 80000;   // 전진 상태에서 10mm 정도만 조작 가능
 
-        public Form1()
+        public RobotControl()
         {
             InitializeComponent();
         }

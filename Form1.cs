@@ -129,6 +129,7 @@ namespace SemiGUI
             this.btnLog.Click += BtnLog_Click;
             this.btnConfig.Click += BtnConfig_Click;
             this.btnLogin.Click += BtnLogin_Click;
+            this.btnRobot.Click += BtnRobot_Click;
 
             this.btnLoadA.Click += (s, e) =>
             {
@@ -156,6 +157,11 @@ namespace SemiGUI
 
             UpdateWaferUI();
             UpdateProcessUI();
+        }
+
+        private void BtnRobot_Click(object sender, EventArgs e)
+        {
+            throw new NotImplementedException();
         }
 
         private void LoadSystemConfig()
@@ -1082,9 +1088,9 @@ namespace SemiGUI
             Form robotForm = new Form() { Text = "Robot", Size = new Size(1263, 759), StartPosition = FormStartPosition.CenterScreen };
             RobotControl rc = new RobotControl() { Dock = DockStyle.Fill };
             rc.ApplyToMainRequested += (s2, data) => ApplyRecipeData(data);
-            rc.btnCancel.Click += (s2, e2) => rPop.Close();
-            rPop.Controls.Add(rc);
-            rPop.ShowDialog();
+            rc.btnCancel.Click += (s2, e2) => robotForm.Close();
+            robotForm.Controls.Add(rc);
+            robotForm.ShowDialog();
         }
 
         /*private void SyncHardwareIO()

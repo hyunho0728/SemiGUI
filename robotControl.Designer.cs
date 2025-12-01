@@ -1,6 +1,6 @@
-﻿namespace WindowsFormsApp1
+﻿namespace SemiGUI
 {
-    partial class Form1
+    partial class RobotControl
     {
         /// <summary>
         /// 필수 디자이너 변수입니다.
