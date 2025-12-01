@@ -68,6 +68,9 @@ namespace SemiGUI
         private Button btnAutoRun;
         private int currentAlarmLevel = 0;
 
+        // [추가] 리셋 중임을 나타내는 플래그
+        private bool isResetting = false;
+
         public Form1()
         {
             InitializeComponent();
@@ -185,15 +188,56 @@ namespace SemiGUI
 
         private void BtnResetChambers_Click(object sender, EventArgs e)
         {
+            // Auto Run 중지
+            if (isAutoRun) ToggleAutoRun();
+
             statusPmA = 0; progressA = 0;
             statusPmB = 0; progressB = 0;
             statusPmC = 0; progressC = 0;
 
+            ResetRobotState();
+
             UpdateProcessUI();
+
             pnlCenter.Invalidate();
 
-            AddLog("Info", "System", "Chambers reset by user");
-            MessageBox.Show("모든 챔버 상태가 초기화되었습니다.", "Reset Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            AddLog("Info", "System", "System reset by user");
+            MessageBox.Show("시스템 상태가 초기화되었습니다. 로봇이 초기 위치로 복귀합니다.", "Reset Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        private void btnResetRobot_Click(object sender, EventArgs e)
+        {
+            ResetRobotState();
+        }
+
+        private void ResetRobotState()
+        {
+            isResetting = true; // 리셋 모드 활성화 (Tick 이벤트에서 감지용)
+
+            // 로봇 동작 변수 설정
+            isRobotMoving = true;
+            robotHasWafer = false;
+            targetAngle = 180; // 초기 위치
+            robotDestination = "";
+            robotSource = "";
+
+            // 애니메이션 상태 설정: 팔이 나와있다면 접고, 아니면 바로 회전
+            if (robotExtension > 0)
+            {
+                currentRobotState = ROBOT_STATE_RETRACT;
+            }
+            else
+            {
+                currentRobotState = ROBOT_STATE_ROTATE;
+            }
+
+            robotWaitCounter = 0;
+
+            // [중요] 타이머가 꺼져있다면(Auto Run이 아니라면) 애니메이션을 위해 강제로 켭니다.
+            if (!sysTimer.Enabled)
+            {
+                sysTimer.Start();
+            }
         }
 
         private void InitializeDatabase()
@@ -231,7 +275,16 @@ namespace SemiGUI
             btnAutoRun.Location = new Point(750, 10);
             btnAutoRun.BackColor = Color.LightGray;
             btnAutoRun.Font = new Font("Arial", 10, FontStyle.Bold);
-            btnAutoRun.Click += (s, e) => ToggleAutoRun();
+            btnAutoRun.Click += (s, e) => {
+                if (isLoggedIn)
+                {
+                    ToggleAutoRun();
+                }
+                else
+                {
+                    MessageBox.Show("로그인이 필요합니다.", "Access Denied", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            };
             this.pnlTop.Controls.Add(btnAutoRun);
         }
 
@@ -263,6 +316,18 @@ namespace SemiGUI
             {
                 AnimateRobot();
                 pnlCenter.Invalidate();
+                return;
+            }
+
+            // [수정] 리셋 중일 때는 이동(복귀)이 완료되면 타이머를 끄고 리셋 종료
+            if (isResetting)
+            {
+                if (!isRobotMoving)
+                {
+                    isResetting = false;
+                    // Auto Run이 아니면 타이머 정지 (원래 상태로 복구)
+                    if (!isAutoRun) sysTimer.Stop();
+                }
                 return;
             }
 
@@ -431,6 +496,14 @@ namespace SemiGUI
                     else
                     {
                         robotAngle = targetAngle;
+
+                        // [수정] 리셋 중이고 목표(180도)에 도달했다면 여기서 종료
+                        if (isResetting && robotAngle == 180)
+                        {
+                            isRobotMoving = false; // 움직임 종료 (SysTimer_Tick에서 타이머 정지 처리됨)
+                            return;
+                        }
+
                         currentRobotState = ROBOT_STATE_EXTEND;
                     }
                     break;
@@ -440,23 +513,21 @@ namespace SemiGUI
                     if (robotExtension >= MAX_EXTENSION)
                     {
                         robotExtension = MAX_EXTENSION;
-                        // [수정] Extend 완료 후 바로 접지 않고 WAIT 상태로 전환
                         currentRobotState = ROBOT_STATE_WAIT;
-                        robotWaitCounter = ROBOT_WAIT_TICKS; // 대기 시간 설정
+                        robotWaitCounter = ROBOT_WAIT_TICKS;
                     }
                     break;
 
                 case ROBOT_STATE_WAIT:
-                    // [추가] 대기 로직 수행
                     if (robotWaitCounter > 0)
                     {
                         robotWaitCounter--;
                     }
                     else
                     {
-                        // 대기 끝, 데이터 처리(Pick/Place) 수행
-                        PerformRobotAction();
-                        currentRobotState = ROBOT_STATE_RETRACT; // 다음 상태: 팔 접기
+                        // 리셋 중이 아닐 때만 데이터 처리 (리셋 중엔 집거나 놓지 않음)
+                        if (!isResetting) PerformRobotAction();
+                        currentRobotState = ROBOT_STATE_RETRACT;
                     }
                     break;
 
@@ -466,6 +537,13 @@ namespace SemiGUI
                     {
                         robotExtension = 0;
                         currentRobotState = ROBOT_STATE_ROTATE;
+
+                        // [수정] 리셋 중일 때는 팔을 다 접었으니 이제 180도로 회전 시작
+                        if (isResetting)
+                        {
+                            targetAngle = 180;
+                            return;
+                        }
 
                         if (robotHasWafer)
                         {
@@ -481,10 +559,9 @@ namespace SemiGUI
             }
         }
 
-        // [추가] 로봇이 완전히 뻗은 후(WAIT 끝난 후) 실행할 데이터 처리 로직 분리
         private void PerformRobotAction()
         {
-            if (!robotHasWafer) // 빈손이면 집는다 (Pick)
+            if (!robotHasWafer) // Pick
             {
                 robotHasWafer = true;
                 if (robotSource == "FOUP_A") foupACount--;
@@ -494,7 +571,7 @@ namespace SemiGUI
 
                 UpdateWaferUI();
             }
-            else // 웨이퍼 있으면 놓는다 (Place)
+            else // Place
             {
                 robotHasWafer = false;
                 if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
@@ -617,13 +694,15 @@ namespace SemiGUI
             int cx = pnlCenter.Width / 2;
             int cy = pnlCenter.Height / 2;
 
-            pnlChamberB.Location = new Point(cx - 40, cy - 250);
-            pnlChamberA.Location = new Point(cx - 250, cy - 50);
-            pnlChamberC.Location = new Point(cx + 170, cy - 50);
-            pnlFoupA.Location = new Point(cx - 200, cy + 180);
-            pnlFoupB.Location = new Point(cx + 120, cy + 180);
-            pnlCassetteL.Location = new Point(cx - 100, cy + 330);
-            pnlCassetteR.Location = new Point(cx + 20, cy + 330);
+            pnlChamberB.Location = new Point(cx - 40, cy - 220);
+            pnlChamberA.Location = new Point(cx - 210, cy - 50);
+            pnlChamberC.Location = new Point(cx + 120, cy - 50);
+
+            pnlFoupA.Location = new Point(cx - 155, cy + 115);
+            pnlFoupB.Location = new Point(cx + 75, cy + 115);
+
+            pnlCassetteL.Location = new Point(cx - 95, cy + 230);
+            pnlCassetteR.Location = new Point(cx + 35, cy + 230);
 
             if (lblNameA != null) lblNameA.Location = new Point(pnlChamberA.Left + (pnlChamberA.Width - lblNameA.Width) / 2, pnlChamberA.Top - 25);
             if (lblNameB != null) lblNameB.Location = new Point(pnlChamberB.Left + (pnlChamberB.Width - lblNameB.Width) / 2, pnlChamberB.Top - 25);
