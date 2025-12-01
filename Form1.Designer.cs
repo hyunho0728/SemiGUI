@@ -119,6 +119,7 @@
             this.pnlWaferR3 = new System.Windows.Forms.Panel();
             this.pnlWaferR4 = new System.Windows.Forms.Panel();
             this.pnlWaferR5 = new System.Windows.Forms.Panel();
+            this.button1 = new System.Windows.Forms.Button();
             this.pnlTop.SuspendLayout();
             this.grpLogin.SuspendLayout();
             this.pnlHost.SuspendLayout();
@@ -139,6 +140,7 @@
             // pnlTop
             // 
             this.pnlTop.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.pnlTop.Controls.Add(this.button1);
             this.pnlTop.Controls.Add(this.grpLogin);
             this.pnlTop.Controls.Add(this.lblTm);
             this.pnlTop.Controls.Add(this.pnlLedTm);
@@ -302,6 +304,7 @@
             this.btnConnect.TabIndex = 10;
             this.btnConnect.Text = "CONNECT";
             this.btnConnect.UseVisualStyleBackColor = false;
+            this.btnConnect.Click += new System.EventHandler(this.btnConnect_Click);
             // 
             // pnlAlarm
             // 
@@ -1223,6 +1226,16 @@
             this.pnlWaferR5.Size = new System.Drawing.Size(70, 8);
             this.pnlWaferR5.TabIndex = 4;
             // 
+            // button1
+            // 
+            this.button1.Location = new System.Drawing.Point(1209, 29);
+            this.button1.Name = "button1";
+            this.button1.Size = new System.Drawing.Size(75, 23);
+            this.button1.TabIndex = 14;
+            this.button1.Text = "button1";
+            this.button1.UseVisualStyleBackColor = true;
+            this.button1.Click += new System.EventHandler(this.button1_Click);
+            // 
             // Form1
             // 
             this.BackColor = System.Drawing.Color.White;
@@ -1382,5 +1395,6 @@
 
         private System.Windows.Forms.Button btnConfig;
         private System.Windows.Forms.Button btnResetRobot;
+        private System.Windows.Forms.Button button1;
     }
 }

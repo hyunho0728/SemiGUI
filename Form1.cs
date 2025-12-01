@@ -3,12 +3,46 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
+using IEG3268_Dll;
 using MySql.Data.MySqlClient;
 
 namespace SemiGUI
 {
     public partial class Form1 : Form
     {
+        IEG3268 EtherCAT_M = new IEG3268();
+        bool isEtherConnected = false;
+
+        // Form1.cs 클래스 내부 상단 (변수 선언부)
+
+        // [1] 좌/우 서보 (Axis 2) 위치 값 (단위: Pulse)
+        private const long POS_LR_FOUP_A = 13500;
+        private const long POS_LR_FOUP_B = -394700;
+        private const long POS_LR_PMA = -59064;
+        private const long POS_LR_PMB = -190823;
+        private const long POS_LR_PMC = -322000;
+
+        // [2] 상/하 서보 (Axis 1) 위치 값 (단위: Pulse)
+        // 챔버 공통 높이
+        private const long POS_UD_CHAMBER_SAFE = 1150000; // 상승 위치
+        private const long POS_UD_CHAMBER_PLACE = 806931; // 안착 위치
+
+        // FOUP 슬롯별 높이 (Slot 1 ~ 5)
+        private readonly long[] POS_UD_FOUP_SLOTS = new long[]
+        {
+            290000,   // Slot 1 (Bottom)
+            982378,   // Slot 2
+            1627604,  // Slot 3
+            2332102,  // Slot 4
+            3018457   // Slot 5 (Top)
+        };
+
+        // [3] 로봇 실린더 IO 번호
+        private const int DO_ROBOT_EXTEND = 12;  // 전진 (이미지/참조코드 기준)
+        private const int DO_ROBOT_RETRACT = 13; // 후진
+        private const int DO_VACUUM_ON = 14;     // 흡기 (Wafer Grip)
+        private const int DO_VACUUM_OFF = 15;    // 배기 (Wafer Release) - 필요 시
+
         // [DB 연결 문자열] 환경에 맞게 수정 필요
         private string connectionString = "Server=localhost;Port=3306;Database=SemiGuiData;Uid=root;Pwd=1234;Charset=utf8;";
 
@@ -95,10 +129,6 @@ namespace SemiGUI
             this.btnLog.Click += BtnLog_Click;
             this.btnConfig.Click += BtnConfig_Click;
             this.btnLogin.Click += BtnLogin_Click;
-
-            this.btnConnect.Click += (s, e) => {
-                MessageBox.Show("EtherCAT 연결 기능은 추후 구현 예정입니다.", "System Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            };
 
             this.btnLoadA.Click += (s, e) => {
                 foupACount = 5;
@@ -319,6 +349,8 @@ namespace SemiGUI
         private void SysTimer_Tick(object sender, EventArgs e)
         {
             CheckAlarms();
+
+            SyncHardwareIO();
 
             // 1. 공정 시뮬레이션 시작 트리거 (비동기 함수 호출)
             // 상태가 1(Running)이고 아직 비동기 작업이 시작되지 않았다면 시작
@@ -634,6 +666,16 @@ namespace SemiGUI
 
             currentRobotState = ROBOT_STATE_ROTATE;
             robotExtension = 0;
+
+            // [추가] 하드웨어 로봇 이동 명령 전송
+            // Pick하러 가는 것이므로 Source 위치로 이동해야 함
+            // FOUP인 경우 현재 카운트(슬롯 위치)를 계산해서 전달
+            int slotIdx = 0;
+            if (src == "FOUP_A") slotIdx = foupACount - 1;
+            else if (src == "FOUP_B") slotIdx = foupBCount - 1;
+
+            // 1차 이동: 물건을 가지러(Source) 감
+            MoveRobotHardware(src, slotIdx);
         }
 
         private void AnimateRobot()
@@ -667,6 +709,13 @@ namespace SemiGUI
                         }
 
                         currentRobotState = ROBOT_STATE_EXTEND;
+
+                        // [추가] 회전 완료 -> 실린더 전진 (DO 12 ON, 13 OFF)
+                        if (isEtherConnected)
+                        {
+                            EtherCAT_M.Digital_Output(DO_ROBOT_RETRACT, false);
+                            EtherCAT_M.Digital_Output(DO_ROBOT_EXTEND, true);
+                        }
                     }
                     break;
 
@@ -677,6 +726,15 @@ namespace SemiGUI
                         robotExtension = MAX_EXTENSION;
                         currentRobotState = ROBOT_STATE_WAIT;
                         robotWaitCounter = ROBOT_WAIT_TICKS;
+
+                        // [추가] 완전히 뻗었을 때 -> 진공 흡입/해제
+                        if (isEtherConnected)
+                        {
+                            if (!robotHasWafer) // Pick 동작 중이면 흡착
+                                EtherCAT_M.Digital_Output(DO_VACUUM_ON, true);
+                            else // Place 동작 중이면 해제
+                                EtherCAT_M.Digital_Output(DO_VACUUM_ON, false);
+                        }
                     }
                     break;
 
@@ -689,6 +747,13 @@ namespace SemiGUI
                     {
                         if (!isResetting) PerformRobotAction();
                         currentRobotState = ROBOT_STATE_RETRACT;
+
+                        // [추가] 대기 끝 -> 실린더 후진 (DO 12 OFF, 13 ON)
+                        if (isEtherConnected)
+                        {
+                            EtherCAT_M.Digital_Output(DO_ROBOT_EXTEND, false);
+                            EtherCAT_M.Digital_Output(DO_ROBOT_RETRACT, true);
+                        }
                     }
                     break;
 
@@ -699,6 +764,7 @@ namespace SemiGUI
                         robotExtension = 0;
                         currentRobotState = ROBOT_STATE_ROTATE;
 
+                        // [추가] 후진 완료
                         if (isResetting)
                         {
                             targetAngle = 180;
@@ -707,7 +773,15 @@ namespace SemiGUI
 
                         if (robotHasWafer)
                         {
+                            // Pick 완료 -> Place 위치(Destination)로 이동
                             targetAngle = GetAngle(robotDestination);
+
+                            // [추가] 하드웨어: 목적지로 서보 이동
+                            int slotIdx = 0;
+                            if (robotDestination == "FOUP_A") slotIdx = foupACount; // 놓을 빈 공간
+                            else if (robotDestination == "FOUP_B") slotIdx = foupBCount;
+
+                            MoveRobotHardware(robotDestination, slotIdx);
                         }
                         else
                         {
@@ -917,6 +991,216 @@ namespace SemiGUI
             LogControl lc = new LogControl() { Dock = DockStyle.Fill };
             lPop.Controls.Add(lc);
             lPop.Show();
+        }
+
+        // [추가] 시뮬레이션 상태를 실제 하드웨어 IO로 출력
+        // [신규] 시뮬레이션 상태를 실제 IO와 동기화
+        // Form1.cs 내부의 SyncHardwareIO 메서드 수정
+
+        // [수정] 하드웨어 IO 동기화 (로봇 동작 단계별 도어 제어 강화)
+        // [수정] 하드웨어 IO 동기화 (공정 중 도어 닫힘 유지)
+        private void SyncHardwareIO()
+        {
+            if (!isEtherConnected) return;
+
+            // 1. 타워 램프
+            EtherCAT_M.Digital_Output(0, currentAlarmLevel == 2); // Red
+            EtherCAT_M.Digital_Output(1, currentAlarmLevel == 1); // Yellow
+            EtherCAT_M.Digital_Output(2, currentAlarmLevel == 0); // Green
+
+            // [로봇 상태 공통 변수]
+            bool isRetracting = (currentRobotState == ROBOT_STATE_RETRACT);
+
+            // =========================================================
+            // 2. Chamber A 제어
+            // =========================================================
+            bool shouldOpenA = false; // 기본값: 닫힘
+
+            if (isRobotMoving)
+            {
+                // 로봇의 목표가 정확히 'PM A'일 때만 조건 검사
+                if (robotSource == "PMA") // A에서 꺼낼 때 (Pick)
+                {
+                    // (1) 도착해서 집기 전(!HasWafer) OR (2) 집고 나오는 중(Retracting)
+                    if (!robotHasWafer || isRetracting) shouldOpenA = true;
+                }
+                else if (robotDestination == "PMA") // A에 넣을 때 (Place)
+                {
+                    // (1) 도착해서 놓기 전(HasWafer) OR (2) 놓고 나오는 중(Retracting)
+                    if (robotHasWafer || isRetracting) shouldOpenA = true;
+                }
+            }
+
+            EtherCAT_M.Digital_Output(3, statusPmA == 1); // 램프
+            EtherCAT_M.Digital_Output(4, !shouldOpenA);   // P104 (닫힘)
+            EtherCAT_M.Digital_Output(5, shouldOpenA);    // P105 (열림)
+
+
+            // =========================================================
+            // 3. Chamber B 제어
+            // =========================================================
+            bool shouldOpenB = false;
+
+            if (isRobotMoving)
+            {
+                // 로봇의 목표가 정확히 'PM B'일 때만 조건 검사
+                if (robotSource == "PMB")
+                {
+                    if (!robotHasWafer || isRetracting) shouldOpenB = true;
+                }
+                else if (robotDestination == "PMB")
+                {
+                    if (robotHasWafer || isRetracting) shouldOpenB = true;
+                }
+            }
+
+            EtherCAT_M.Digital_Output(6, statusPmB == 1);
+            EtherCAT_M.Digital_Output(7, !shouldOpenB);   // P107
+            EtherCAT_M.Digital_Output(8, shouldOpenB);    // P108
+
+
+            // =========================================================
+            // 4. Chamber C 제어
+            // =========================================================
+            bool shouldOpenC = false;
+
+            if (isRobotMoving)
+            {
+                // 로봇의 목표가 정확히 'PM C'일 때만 조건 검사
+                if (robotSource == "PMC")
+                {
+                    if (!robotHasWafer || isRetracting) shouldOpenC = true;
+                }
+                else if (robotDestination == "PMC")
+                {
+                    if (robotHasWafer || isRetracting) shouldOpenC = true;
+                }
+            }
+
+            EtherCAT_M.Digital_Output(9, statusPmC == 1);
+            EtherCAT_M.Digital_Output(10, !shouldOpenC);  // P110
+            EtherCAT_M.Digital_Output(11, shouldOpenC);   // P111
+        }
+
+        // [추가] EtherCAT 연결/해제 버튼 핸들러
+        private void btnConnect_Click(object sender, EventArgs e)
+        {
+            if (!isEtherConnected)
+            {
+                // 연결 시도
+                if (EtherCAT_M.CIFX_50RE_Connect() == true)
+                {
+                    isEtherConnected = true;
+                    btnConnect.Text = "DISCONNECT";
+                    btnConnect.BackColor = Color.LimeGreen; // 연결 성공 시 녹색
+                    lblHostState.Text = "ONLINE"; // HOST 상태 표시 연동 (선택사항)
+
+                    EtherCAT_M.ReadData_Send_Start(300); // Timer interval Set
+                    EtherCAT_M.ReadData_Timer_Start();   // Timer Start
+
+                    // [추가] Servo ON (필수)
+                    EtherCAT_M.Axis1_ON(); // Up/Down
+                    EtherCAT_M.Axis2_ON(); // Left/Right
+
+                    AddLog("Event", "System", "EtherCAT Connected Success");
+                }
+                else
+                {
+                    MessageBox.Show("EtherCAT 연결 실패", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    AddLog("Error", "System", "EtherCAT Connection Failed");
+                }
+            }
+            else
+            {
+                // [추가] Servo OFF
+                EtherCAT_M.Axis1_OFF();
+                EtherCAT_M.Axis2_OFF();
+
+                // 연결 해제
+                EtherCAT_M.CIFX_50RE_Disconnect();
+                isEtherConnected = false;
+
+                btnConnect.Text = "CONNECT";
+                btnConnect.BackColor = Color.Khaki; // 원래 색상 복구
+                lblHostState.Text = "OFFLINE";
+
+                AddLog("Event", "System", "EtherCAT Disconnected");
+            }
+        }
+        private void MoveRobotHardware(string destination, int slotIndex = 0)
+        {
+            if (!isEtherConnected) return;
+
+            long targetPosLR = 0;
+            long targetPosUD = POS_UD_CHAMBER_PLACE; // 기본값
+
+            // 1. 목적지에 따른 좌/우(Axis 2) 좌표 설정
+            switch (destination)
+            {
+                case "FOUP_A": targetPosLR = POS_LR_FOUP_A; break;
+                case "FOUP_B": targetPosLR = POS_LR_FOUP_B; break;
+                case "PMA": targetPosLR = POS_LR_PMA; break;
+                case "PMB": targetPosLR = POS_LR_PMB; break;
+                case "PMC": targetPosLR = POS_LR_PMC; break;
+            }
+
+            // 2. 목적지에 따른 상/하(Axis 1) 좌표 설정
+            if (destination.Contains("FOUP"))
+            {
+                // 슬롯 인덱스 보호 (0~4)
+                int idx = Math.Max(0, Math.Min(slotIndex, 4));
+                targetPosUD = POS_UD_FOUP_SLOTS[idx];
+            }
+            else
+            {
+                // 챔버는 안착 위치로 이동
+                targetPosUD = POS_UD_CHAMBER_PLACE;
+            }
+
+            // 3. 실제 명령 전송 (참조 파일: Form1.cs - button1_Click 등 참고)
+            // Axis 2 (좌/우) 이동
+            EtherCAT_M.Axis2_LR_POS_Update(targetPosLR);
+            EtherCAT_M.Axis2_LR_Move_Send();
+
+            // Axis 1 (상/하) 이동
+            EtherCAT_M.Axis1_UD_POS_Update(targetPosUD);
+            EtherCAT_M.Axis1_UD_Move_Send();
+        }
+
+        // [신규] 도어 강제 개방 및 로봇 안전 이동 함수
+        private void MoveRobotSafely(string destination, int slotIndex = 0)
+        {
+            if (!isEtherConnected) return;
+
+            // 1. [중요] 기존 자동 제어 루프(SyncHardwareIO) 간섭 방지
+            // 타이머가 돌고 있으면 도어를 닫으려고 할 수 있으므로 잠시 멈춥니다.
+            if (sysTimer.Enabled)
+            {
+                sysTimer.Stop();
+                // 필요 시 UI에 "Manual Mode" 표시 등 추가 가능
+            }
+
+            // 2. 모든 챔버 도어 강제 하강(Open)
+            // Chamber A
+            EtherCAT_M.Digital_Output(4, false); // 상승 OFF
+            EtherCAT_M.Digital_Output(5, true);  // 하강 ON
+                                                 // Chamber B
+            EtherCAT_M.Digital_Output(7, false); // 상승 OFF
+            EtherCAT_M.Digital_Output(8, true);  // 하강 ON
+                                                 // Chamber C
+            EtherCAT_M.Digital_Output(10, false); // 상승 OFF
+            EtherCAT_M.Digital_Output(11, true);  // 하강 ON
+
+            // 3. 로봇 하드웨어 이동 명령
+            // 기존에 만들어둔 하드웨어 이동 함수 재사용
+            MoveRobotHardware(destination, slotIndex);
+
+            AddLog("Info", "Safety", $"Safety Move: Doors Opened & Robot Moving to {destination}");
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            MoveRobotSafely("PMA", 0);
         }
     }
 }
