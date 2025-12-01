@@ -579,8 +579,8 @@ namespace SemiGUI
                 var labelState = g.Save();
 
                 g.TranslateTransform(-50, 0);
-                g.RotateTransform(-180);
-                g.RotateTransform(-angle);
+                //g.RotateTransform(-180);
+                g.RotateTransform(90);
 
                 SizeF size = g.MeasureString(label, f);
                 g.DrawString(label, f, Brushes.Black, -size.Width / 2, -size.Height / 2);
@@ -777,12 +777,35 @@ namespace SemiGUI
 
         private void UpdateProcessUI()
         {
-            progA.Value = (int)Math.Min(progressA, 100);
+            // [변경] 기존 단순 대입(progA.Value = ...) 대신 즉시 갱신 메서드 사용
+            UpdateProgressBar(progA, (int)Math.Min(progressA, 100));
             pnlChamberA.BackColor = GetStateColor(statusPmA);
-            progB.Value = (int)Math.Min(progressB, 100);
+
+            UpdateProgressBar(progB, (int)Math.Min(progressB, 100));
             pnlChamberB.BackColor = GetStateColor(statusPmB);
-            progC.Value = (int)Math.Min(progressC, 100);
+
+            UpdateProgressBar(progC, (int)Math.Min(progressC, 100));
             pnlChamberC.BackColor = GetStateColor(statusPmC);
+        }
+
+        // [추가] ProgressBar 애니메이션 딜레이 제거를 위한 헬퍼 메서드
+        private void UpdateProgressBar(ProgressBar pb, int value)
+        {
+            if (value == pb.Value) return;
+
+            // 값이 100(Maximum)일 때 애니메이션 없이 즉시 꽉 차게 설정하는 트릭
+            if (value == pb.Maximum)
+            {
+                pb.Maximum = value + 1;     // Maximum을 잠시 늘림
+                pb.Value = value + 1;       // 값을 늘린 Maximum으로 설정 (즉시 이동)
+                pb.Maximum = value;         // Maximum을 원래대로 복구
+            }
+            else
+            {
+                // 목표 값보다 1 크게 설정했다가 줄이면 애니메이션이 생략됨
+                pb.Value = value + 1;
+                pb.Value = value;
+            }
         }
 
         private Color GetStateColor(int state)
@@ -803,7 +826,7 @@ namespace SemiGUI
         {
             if (data.PmA_Params != null)
             {
-                valTargetA.Text = data.PmA_Params[0]; valGasA.Text = data.PmA_Params[1]; valTimeA.Text = data.PmA_Params[2];
+                valTargetA.Text = data.PmA_Params[0]; valGasA.Text = data.PmA_Params[1]; valTimeA.Text = data.PmA_Params[2]; valCurrA.Text = data.PmA_Params[0];
                 int.TryParse(data.PmA_Params[2], out timePmA);
             }
             if (data.PmB_Params != null)
