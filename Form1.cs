@@ -9,7 +9,7 @@ namespace SemiGUI
 {
     public partial class Form1 : Form
     {
-        // [추가] DB 연결 문자열
+        // [DB 연결 문자열] 환경에 맞게 수정 필요
         private string connectionString = "Server=localhost;Port=3306;Database=SemiGuiData;Uid=root;Pwd=1234;Charset=utf8;";
 
         // ... (기존 변수 유지) ...
@@ -29,6 +29,11 @@ namespace SemiGUI
         private double progressA = 0;
         private double progressB = 0;
         private double progressC = 0;
+
+        // [추가] 각 챔버별 공정 비동기 작업 실행 여부 확인용 플래그
+        private bool isRunningPmA = false;
+        private bool isRunningPmB = false;
+        private bool isRunningPmC = false;
 
         private int timePmA = 5;
         private int timePmB = 5;
@@ -193,13 +198,14 @@ namespace SemiGUI
             catch (Exception) { }
         }
 
+        // [수정] 리셋 로직에 비동기 플래그 초기화 추가
         private void BtnResetChambers_Click(object sender, EventArgs e)
         {
             if (isAutoRun) ToggleAutoRun();
 
-            statusPmA = 0; progressA = 0;
-            statusPmB = 0; progressB = 0;
-            statusPmC = 0; progressC = 0;
+            statusPmA = 0; progressA = 0; isRunningPmA = false;
+            statusPmB = 0; progressB = 0; isRunningPmB = false;
+            statusPmC = 0; progressC = 0; isRunningPmC = false;
 
             UpdateProcessUI();
             ResetRobotState();
@@ -309,19 +315,24 @@ namespace SemiGUI
             sysTimer.Tick += SysTimer_Tick;
         }
 
+        // [수정] SysTimer_Tick: 로봇 제어 및 공정 시작 트리거 역할만 수행
         private void SysTimer_Tick(object sender, EventArgs e)
         {
             CheckAlarms();
 
-            // 1. 공정 시뮬레이션: 로봇의 상태와 무관하게 항상 실행 (병렬 처리 효과)
-            SimulateProcess();
+            // 1. 공정 시뮬레이션 시작 트리거 (비동기 함수 호출)
+            // 상태가 1(Running)이고 아직 비동기 작업이 시작되지 않았다면 시작
+            if (statusPmA == 1 && !isRunningPmA) RunProcessAsync("PMA", timePmA);
+            if (statusPmB == 1 && !isRunningPmB) RunProcessAsync("PMB", timePmB);
+            if (statusPmC == 1 && !isRunningPmC) RunProcessAsync("PMC", timePmC);
 
-            // 2. 로봇 애니메이션
+            // 2. 로봇 애니메이션 (기존 로직 유지)
             if (isRobotMoving)
             {
                 AnimateRobot();
+                pnlCenter.Invalidate(); // 로봇 움직임 갱신
             }
-            // 3. 리셋 처리 (로봇 이동이 끝났고 리셋 모드일 때)
+            // 3. 리셋 처리
             else if (isResetting)
             {
                 isResetting = false;
@@ -330,6 +341,7 @@ namespace SemiGUI
             // 4. 새로운 명령 확인 (로봇이 IDLE 상태이고 리셋 중이 아닐 때만)
             else
             {
+                // 로봇 스케줄링 로직 (기존과 동일)
                 if (statusPmC == 2 && !robotHasWafer)
                 {
                     if (foupBCount < 5) StartRobotMove("PMC", "FOUP_B");
@@ -348,9 +360,82 @@ namespace SemiGUI
                 }
             }
 
-            // 5. UI 업데이트 및 화면 다시 그리기
+            // UI 업데이트 (프로그레스바 등)
+            // 비동기 함수 내에서도 업데이트하지만, 로봇 이동 등 다른 요소 반영을 위해 유지
             UpdateProcessUI();
-            pnlCenter.Invalidate();
+        }
+
+        // [신규] 비동기 공정 시뮬레이션 메서드
+        private async void RunProcessAsync(string pmName, int durationSec)
+        {
+            // 중복 실행 방지
+            if (pmName == "PMA") isRunningPmA = true;
+            else if (pmName == "PMB") isRunningPmB = true;
+            else if (pmName == "PMC") isRunningPmC = true;
+
+            DateTime startTime = DateTime.Now;
+            double targetDuration = durationSec; // 초 단위
+
+            while (true)
+            {
+                // 경과 시간 계산
+                double elapsed = (DateTime.Now - startTime).TotalSeconds;
+                double progress = (elapsed / targetDuration) * 100.0;
+
+                // 진행률 업데이트 (해당 PM만)
+                if (pmName == "PMA") progressA = progress;
+                else if (pmName == "PMB") progressB = progress;
+                else if (pmName == "PMC") progressC = progress;
+
+                // UI 갱신 (부드러운 진행을 위해)
+                UpdateProcessUI();
+
+                // 종료 조건: 100% 도달 시
+                if (progress >= 100.0)
+                {
+                    // 100%로 값 고정
+                    if (pmName == "PMA") progressA = 100.0;
+                    else if (pmName == "PMB") progressB = 100.0;
+                    else if (pmName == "PMC") progressC = 100.0;
+
+                    UpdateProcessUI(); // 100% 상태 그리기
+                    break; // 루프 종료
+                }
+
+                // 20ms 정도 대기 (약 50fps) - UI 스레드 양보
+                await System.Threading.Tasks.Task.Delay(20);
+
+                // [안전장치] 만약 공정 중 강제 리셋되거나 상태가 바뀌면 중단
+                bool shouldStop = false;
+                if (pmName == "PMA" && statusPmA != 1) shouldStop = true;
+                if (pmName == "PMB" && statusPmB != 1) shouldStop = true;
+                if (pmName == "PMC" && statusPmC != 1) shouldStop = true;
+
+                if (shouldStop)
+                {
+                    // 실행 플래그 해제 후 종료
+                    if (pmName == "PMA") isRunningPmA = false;
+                    else if (pmName == "PMB") isRunningPmB = false;
+                    else if (pmName == "PMC") isRunningPmC = false;
+                    return;
+                }
+            }
+
+            // 공정 완료 처리
+            if (pmName == "PMA") { statusPmA = 2; isRunningPmA = false; }
+            else if (pmName == "PMB") { statusPmB = 2; isRunningPmB = false; }
+            else if (pmName == "PMC") { statusPmC = 2; isRunningPmC = false; }
+
+            AddLog("Process", GetPmFullName(pmName), "Process Complete");
+            UpdateProcessUI(); // 완료 상태(색상) 반영
+        }
+
+        private string GetPmFullName(string pmName)
+        {
+            if (pmName == "PMA") return "PM A";
+            if (pmName == "PMB") return "PM B";
+            if (pmName == "PMC") return "PM C";
+            return pmName;
         }
 
         private void CheckAlarms()
@@ -408,13 +493,11 @@ namespace SemiGUI
             g.FillEllipse(Brushes.LightGray, cx - 60, cy - 60, 120, 120);
             g.FillEllipse(new SolidBrush(Color.FromArgb(60, 60, 80)), cx - 25, cy - 25, 50, 50);
 
-            // 2. FOUP 그리기 (회전된 형태) - 고정됨
-            // [수정] 원래 위치 각도(135, 45)를 그대로 사용하여 제자리에 배치
-            // 내부는 DrawRotatedFoup에서 뒤집어서 그림
+            // 2. FOUP 그리기 (회전된 형태)
             DrawRotatedFoup(g, cx, cy, ANG_FOUP_A, "FOUP A", foupACount);
             DrawRotatedFoup(g, cx, cy, ANG_FOUP_B, "FOUP B", foupBCount);
 
-            // [중요] 로봇 그리기 전 좌표계 초기화 (FOUP 회전이 로봇에 영향 주지 않게)
+            // [중요] 로봇 그리기 전 좌표계 초기화
             g.ResetTransform();
 
             // 3. 로봇 그리기 (회전하는 형태)
@@ -434,7 +517,7 @@ namespace SemiGUI
                 g.FillEllipse(Brushes.CornflowerBlue, armX + 70, -20, 40, 40);
             }
 
-            // [중요] UI 그리기 전 좌표계 초기화 (로봇 회전이 신호등에 영향 주지 않게)
+            // [중요] UI 그리기 전 좌표계 초기화
             g.ResetTransform();
 
             // 4. 신호등 그리기 (우측 상단 고정)
@@ -446,74 +529,58 @@ namespace SemiGUI
             g.DrawRectangle(Pens.Gray, lightX, lightY, 30, 90);
         }
 
+        // [수정] FOUP 디자인 개선 및 5개 슬롯 항상 표시 (유무에 따라 색상 변경)
         private void DrawRotatedFoup(Graphics g, int cx, int cy, float angle, string label, int waferCount)
         {
-            var state = g.Save(); // 좌표계 저장
+            var state = g.Save();
 
-            // 1. 화면 중심으로 이동
             g.TranslateTransform(cx, cy);
-
-            // 2. 해당 FOUP의 위치 각도(135도, 45도)만큼 회전
             g.RotateTransform(angle);
-
-            // 3. 중심에서 160 거리만큼 바깥으로 이동
             g.TranslateTransform(160, 0);
+            g.RotateTransform(180); // 입구가 로봇을 향하게
 
-            // 4. [핵심] 180도 회전 -> 로컬 좌표계의 +X축(입구)이 로봇(중심)을 향하게 됨
-            g.RotateTransform(180);
-
-            // [1] FOUP 바닥면 (배경)
+            // [1] FOUP 배경
             Rectangle foupRect = new Rectangle(-40, -40, 80, 80);
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(240, 240, 240))) // 아주 밝은 회색
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(240, 240, 240)))
             {
                 g.FillRectangle(bgBrush, foupRect);
             }
 
-            // [2] 웨이퍼 그리기
+            // [2] 웨이퍼 그리기 (항상 5개 표시, 유무에 따라 색상 변경)
             int maxWafers = 5;
             for (int i = 0; i < maxWafers; i++)
             {
-                Color color = (i < waferCount) ? Color.Blue : Color.Black;
+                // 있음: 파랑, 없음: 검정
+                Color waferColor = (i < waferCount) ? Color.Blue : Color.Black;
 
-                using (SolidBrush waferBrush = new SolidBrush(color))
+                using (SolidBrush waferBrush = new SolidBrush(waferColor))
                 {
-                    float waferWidth = 10;  // 웨이퍼 두께 (X축 방향)
-                    float waferLength = 70; // 웨이퍼 길이 (Y축 방향, 꽉 차게)
+                    float waferWidth = 10;
+                    float waferLength = 70;
 
                     float xPos = -35 + (i * 14);
-                    float yPos = -35; // 위쪽(-Y)에서 시작
+                    float yPos = -35;
 
                     g.FillRectangle(waferBrush, xPos, yPos, waferWidth, waferLength);
                 }
             }
 
-            // [3] 벽면 그리기 (ㄷ자 모양 - 뒤, 위, 아래 막힘)
-            // Pen 두께를 두껍게 해서 벽 느낌을 냄
+            // [3] 벽면 그리기 (ㄷ자 모양)
             using (Pen wallPen = new Pen(Color.DimGray, 4))
             {
-                // 1. 위쪽 벽 (Side 1)
-                g.DrawLine(wallPen, -40, -40, 40, -40);
-
-                // 2. 아래쪽 벽 (Side 2)
-                g.DrawLine(wallPen, -40, 40, 40, 40);
-
-                // 3. 뒷면 벽 (Back - 로봇 반대편)
-                // 모서리가 깔끔하게 만나도록 조정
-                g.DrawLine(wallPen, -40, -42, -40, 42);
+                g.DrawLine(wallPen, -40, -40, 40, -40); // 위
+                g.DrawLine(wallPen, -40, 40, 40, 40);   // 아래
+                g.DrawLine(wallPen, -40, -42, -40, 42); // 뒤
             }
 
-            // [4] 라벨 그리기 (FOUP 바깥쪽)
-            // 텍스트 위치: 박스 아래쪽이나 뒤쪽
+            // [4] 라벨 그리기
             using (Font f = new Font("Arial", 10, FontStyle.Bold))
             {
                 var labelState = g.Save();
 
-                // 박스 '아래쪽(화면상)'에 글씨를 쓰기 위해 이동
-                // 로컬 좌표계에서 Y=40이 한쪽 벽면임. 
-                // 텍스트가 항상 화면 정방향으로 보이게 하려면 역회전 필요
-
-                g.TranslateTransform(-50, 0); // 박스 뒤쪽으로 이동
-                g.RotateTransform(90);
+                g.TranslateTransform(-50, 0);
+                g.RotateTransform(-180);
+                g.RotateTransform(-angle);
 
                 SizeF size = g.MeasureString(label, f);
                 g.DrawString(label, f, Brushes.Black, -size.Width / 2, -size.Height / 2);
@@ -521,7 +588,7 @@ namespace SemiGUI
                 g.Restore(labelState);
             }
 
-            g.Restore(state); // 좌표계 복구
+            g.Restore(state);
         }
 
         private void pnlAlarm_Paint(object sender, PaintEventArgs e)
@@ -658,39 +725,21 @@ namespace SemiGUI
             {
                 robotHasWafer = true;
                 if (robotSource == "FOUP_A") foupACount--;
-                else if (robotSource == "PMA") statusPmA = 0;
-                else if (robotSource == "PMB") statusPmB = 0;
-                else if (robotSource == "PMC") statusPmC = 0;
+                else if (robotSource == "PMA") { statusPmA = 0; progressA = 0; } // 꺼낼 때 초기화
+                else if (robotSource == "PMB") { statusPmB = 0; progressB = 0; }
+                else if (robotSource == "PMC") { statusPmC = 0; progressC = 0; }
 
                 UpdateWaferUI();
-                pnlCenter.Invalidate(); // FOUP 그리기 갱신
+                pnlCenter.Invalidate();
             }
             else // Place
             {
                 robotHasWafer = false;
+                // 상태를 1로 바꾸면 SysTimer_Tick에서 감지하여 RunProcessAsync를 시작함
                 if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
                 else if (robotDestination == "PMB") { statusPmB = 1; progressB = 0; }
                 else if (robotDestination == "PMC") { statusPmC = 1; progressC = 0; }
                 else if (robotDestination == "FOUP_B") { foupBCount++; UpdateWaferUI(); pnlCenter.Invalidate(); }
-            }
-        }
-
-        private void SimulateProcess()
-        {
-            if (statusPmA == 1)
-            {
-                progressA += (100.0 / (timePmA * 20));
-                if (progressA >= 100) { progressA = 100; statusPmA = 2; AddLog("Process", "PM A", "Process Complete"); }
-            }
-            if (statusPmB == 1)
-            {
-                progressB += (100.0 / (timePmB * 20));
-                if (progressB >= 100) { progressB = 100; statusPmB = 2; AddLog("Process", "PM B", "Process Complete"); }
-            }
-            if (statusPmC == 1)
-            {
-                progressC += (100.0 / (timePmC * 20));
-                if (progressC >= 100) { progressC = 100; statusPmC = 2; AddLog("Process", "PM C", "Process Complete"); }
             }
         }
 
@@ -748,10 +797,6 @@ namespace SemiGUI
         {
             txtCarrierA.Text = $"FOUP_LOT01 ({foupACount})";
             txtCarrierB.Text = $"FOUP_LOT02 ({foupBCount})";
-
-            // 기존 패널 색상 변경 코드는 이제 무의미하지만(패널 숨김), 
-            // 나중에 참조용으로 남겨두거나 삭제해도 무방함.
-            // pnlWaferL1.BackColor ... (화면에 안보임)
         }
 
         private void ApplyRecipeData(RecipeControl.RecipeModel data)
@@ -780,19 +825,13 @@ namespace SemiGUI
             int cx = pnlCenter.Width / 2;
             int cy = pnlCenter.Height / 2;
 
-            // [수정] 챔버 위치 조정 (바깥으로 조금 더 이동)
             pnlChamberB.Location = new Point(cx - 40, cy - 220);
             pnlChamberA.Location = new Point(cx - 210, cy - 50);
             pnlChamberC.Location = new Point(cx + 120, cy - 50);
 
-            // [수정] FOUP 위치 조정 (45도/135도 각도에 맞춰 X, Y 오프셋을 1:1로 설정)
-            // 중심에서 약 155px 거리 (X:110, Y:110 오프셋)
-            // FOUP A (135도) -> 왼쪽(-110), 아래(+110)
             pnlFoupA.Location = new Point(cx - 150, cy + 70);
-            // FOUP B (45도) -> 오른쪽(+110), 아래(+110)
             pnlFoupB.Location = new Point(cx + 70, cy + 70);
 
-            // [수정] 카세트(웨이퍼 슬롯) 위치 조정 (FOUP 바로 아래 정렬)
             pnlCassetteL.Location = new Point(cx - 100, cy + 160);
             pnlCassetteR.Location = new Point(cx + 20, cy + 160);
 
