@@ -6,8 +6,11 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Security.Cryptography;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+
+using Timer = System.Windows.Forms.Timer;
 
 namespace SemiGUI
 {
@@ -21,6 +24,9 @@ namespace SemiGUI
 
         // [추가] 시뮬레이션 모드 플래그 (True면 AnimateRobot의 자동 상태 전환을 막음)
         private bool isSimulation = false;
+
+        // [추가] 작업 취소용 토큰 소스
+        private CancellationTokenSource _cts;
 
         // -------------------------------------------------------------------------
         // [1] 좌/우 서보 (Axis 2) 위치 값 상수 (단위: Pulse)
@@ -201,7 +207,7 @@ namespace SemiGUI
             this.btnConfig.Click += BtnConfig_Click;
             this.btnLogin.Click += BtnLogin_Click;
             this.btnRobot.Click += BtnRobot_Click;
-            this.btnTestSimul.Click += btnTestSimul_Click;
+            //this.btnTestSimul.Click += btnTestSimul_Click;
 
             this.btnLoadA.Click += (s, e) =>
             {
@@ -946,22 +952,64 @@ namespace SemiGUI
             }
         }
 
-        private void ToggleAutoRun()
+        private async void ToggleAutoRun()
         {
-            isAutoRun = !isAutoRun;
+            // 1. 이미 실행 중이라면 -> 정지 (Stop)
             if (isAutoRun)
             {
-                btnAutoRun.Text = "STOP";
-                btnAutoRun.BackColor = Color.LightCoral;
-                sysTimer.Start();
-                AddLog("Event", "System", "Auto Run Started");
-            }
-            else
-            {
+                // [중요] 취소 요청 발생! -> 모든 await Task.Delay가 즉시 터짐
+                if (_cts != null) _cts.Cancel();
+
+                isAutoRun = false;
                 btnAutoRun.Text = "AUTO RUN";
                 btnAutoRun.BackColor = Color.LightGray;
-                sysTimer.Stop();
-                AddLog("Event", "System", "Auto Run Stopped");
+
+                AddLog("System", "System", "Stop Command Received...");
+                return;
+            }
+
+            // 2. 실행 시작 (Start)
+            isAutoRun = true;
+            btnAutoRun.Text = "STOP";
+            btnAutoRun.BackColor = Color.LightCoral;
+
+            // [중요] 새 토큰 생성
+            _cts = new CancellationTokenSource();
+            var token = _cts.Token;
+
+            if (!sysTimer.Enabled) sysTimer.Start();
+
+            try
+            {
+                if (isEtherConnected)
+                {
+                    AddLog("System", "Mode", "Starting HARDWARE Auto Run");
+                    isSimulation = false;
+                    // [중요] 토큰 전달
+                    await RunHardwareAutoRun(token);
+                }
+                else
+                {
+                    AddLog("System", "Mode", "Starting SIMULATION Auto Run");
+                    isSimulation = true;
+                    // [중요] 토큰 전달
+                    await RunSimulationTesting(token);
+                    isSimulation = false;
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // 토큰 취소 시 여기로 옴 (정상적인 정지 절차)
+                AddLog("System", "System", "Stopped Immediately by User.");
+            }
+            finally
+            {
+                // 작업 종료 후 버튼 복구
+                isAutoRun = false;
+                btnAutoRun.Text = "AUTO RUN";
+                btnAutoRun.BackColor = Color.LightGray;
+                btnRobot.Enabled = true;
+                if (_cts != null) { _cts.Dispose(); _cts = null; }
             }
         }
 
@@ -1166,7 +1214,7 @@ namespace SemiGUI
         }
 
         // 로봇 좌우 이동
-        private async Task WaitAxis1(long targetPos)
+        private async Task WaitAxis1(long targetPos, CancellationToken token)
         {
             int timeout = 0;
             while (timeout < 100) // 약 10초 대기
@@ -1179,7 +1227,7 @@ namespace SemiGUI
                     if (Math.Abs(curPos - targetPos) < 100) return;
                 }
                 catch { }
-                await Task.Delay(100);
+                await Task.Delay(100, token);
                 timeout++;
             }
             throw new Exception("Axis 1 Move Timeout");
@@ -1207,7 +1255,7 @@ namespace SemiGUI
             throw new Exception("Axis 2 Move Timeout");
         }
 
-        private async void btnTestSimul_Click(object sender, EventArgs e)
+        /*private async void btnTestSimul_Click(object sender, EventArgs e)
         {
             // 시뮬레이션을 위해 타이머가 돌아가고 있어야 애니메이션이 그려짐
             if (!sysTimer.Enabled) sysTimer.Start();
@@ -1222,93 +1270,294 @@ namespace SemiGUI
             await RunSimulationTesting();
 
             isSimulation = false;
-        }
+        }*/
 
-        private async Task RunSimulationTesting()
+        // [신규] 실제 하드웨어 제어 스케줄러
+        private async Task RunHardwareAutoRun(CancellationToken token)
         {
             try
             {
-                btnRobot.Enabled = false;
-                AddLog("Simul", "Scheduler", "--- Parallel Simulation Start ---");
+                btnRobot.Enabled = false; // 수동 조작 차단
 
-                // 종료 조건: FOUP A가 비어있고, 모든 챔버가 비워질(Idle) 때까지
-                // (즉, 공장 내 모든 웨이퍼가 FOUP B로 나갈 때까지)
-                while (foupACount > 0 || statusPmA != 0 || statusPmB != 0 || statusPmC != 0)
+                // AutoRun 버튼이 켜져 있고, 작업할 물량이 남았거나 챔버가 돌아가는 중이면 계속 반복
+                while (isAutoRun && (foupACount > 0 || statusPmA != 0 || statusPmB != 0 || statusPmC != 0))
                 {
                     bool actionTaken = false;
 
-                    // -----------------------------------------------------------------
-                    // [우선순위 1] 배출: PM C (완료) -> FOUP B
-                    // -----------------------------------------------------------------
+                    // 1. [배출] PM C (완료) -> FOUP B
                     if (statusPmC == 2 && !robotHasWafer)
                     {
-                        AddLog("Simul", "Job", "Unloading: PM C -> FOUP B");
-                        await Transfer_Chamber_to_FoupB("PMC", ANG_PMC);
+                        AddLog("Auto", "Job", "Hardware Unloading: PM C -> FOUP B");
+                        await Hardware_Transfer_Chamber_to_FoupB("PMC", ANG_PMC, token);
                         actionTaken = true;
                     }
-
-                    // -----------------------------------------------------------------
-                    // [우선순위 2] 이송: PM B (완료) -> PM C (비어있음)
-                    // -----------------------------------------------------------------
+                    // 2. [이송] PM B (완료) -> PM C (비어있음)
                     else if (statusPmB == 2 && statusPmC == 0 && !robotHasWafer)
                     {
-                        AddLog("Simul", "Job", "Transfer: PM B -> PM C");
-                        await Transfer_Chamber_to_Chamber("PMB", ANG_PMB, "PMC", ANG_PMC);
-
-                        // 옮겨놓고 로봇은 바로 빠지고, PM C 공정은 백그라운드에서 시작
-                        _ = RunProcessBackground("PMC");
+                        AddLog("Auto", "Job", "Hardware Transfer: PM B -> PM C");
+                        await Hardware_Transfer_Chamber_to_Chamber("PMB", ANG_PMB, "PMC", ANG_PMC, token);
+                        _ = RunProcessBackground("PMC", token); // 공정 시간 카운트는 SW에서 처리
                         actionTaken = true;
                     }
-
-                    // -----------------------------------------------------------------
-                    // [우선순위 3] 이송: PM A (완료) -> PM B (비어있음)
-                    // -----------------------------------------------------------------
+                    // 3. [이송] PM A (완료) -> PM B (비어있음)
                     else if (statusPmA == 2 && statusPmB == 0 && !robotHasWafer)
                     {
-                        AddLog("Simul", "Job", "Transfer: PM A -> PM B");
-                        await Transfer_Chamber_to_Chamber("PMA", ANG_PMA, "PMB", ANG_PMB);
-
-                        _ = RunProcessBackground("PMB");
+                        AddLog("Auto", "Job", "Hardware Transfer: PM A -> PM B");
+                        await Hardware_Transfer_Chamber_to_Chamber("PMA", ANG_PMA, "PMB", ANG_PMB, token);
+                        _ = RunProcessBackground("PMB", token);
                         actionTaken = true;
                     }
-
-                    // -----------------------------------------------------------------
-                    // [우선순위 4] 투입: FOUP A (있음) -> PM A (비어있음)
-                    // -----------------------------------------------------------------
+                    // 4. [투입] FOUP A (있음) -> PM A (비어있음)
                     else if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
                     {
-                        AddLog("Simul", "Job", "Loading: FOUP A -> PM A");
-                        await Transfer_FoupA_to_Chamber("PMA", ANG_PMA);
-
-                        _ = RunProcessBackground("PMA");
+                        AddLog("Auto", "Job", "Hardware Loading: FOUP A -> PM A");
+                        await Hardware_Transfer_FoupA_to_Chamber("PMA", ANG_PMA, token);
+                        _ = RunProcessBackground("PMA", token);
                         actionTaken = true;
                     }
 
-                    // 할 일이 없으면 잠시 대기 (CPU 과부하 방지 및 공정 완료 대기)
-                    if (!actionTaken)
-                    {
-                        await Task.Delay(100);
-                    }
+                    if (!actionTaken) await Task.Delay(100, token);
                 }
 
-                AddLog("Simul", "Scheduler", "--- All Batches Completed ---");
-                MessageBox.Show("모든 공정이 완료되었습니다.");
+                if (isAutoRun) MessageBox.Show("하드웨어 공정 완료");
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Error: " + ex.Message);
+                // 에러 발생 시 즉시 정지 및 비상 조치
+                isAutoRun = false;
+                AddLog("Error", "Hardware", ex.Message);
+                MessageBox.Show("Hardware Error: " + ex.Message);
+                // 필요시 EtherCAT_M.Digital_Output(...) 등으로 알람 울리기
             }
             finally
             {
                 btnRobot.Enabled = true;
-                ResetSimulationState();
             }
+        }
+
+        // [하드웨어] 투입: FOUP A -> Chamber
+        private async Task Hardware_Transfer_FoupA_to_Chamber(string targetPm, float targetAng, CancellationToken token)
+        {
+            int slotIdx = foupACount - 1;
+
+            // 1. 안전 위치 복귀 (Dead Zone 회피)
+            // 현재 위치가 위험하다면 중앙(180) 경유
+            if (CheckNeedHomeReturn())
+            {
+                await Hardware_ServoMove(ANG_PMA, token);
+            }
+
+            // 2. FOUP A 이동 및 Pick
+            await Hardware_ZMove(CHAMBER_VPOS, token);         // 안전 높이
+            await Hardware_ServoMove(ANG_FOUP_A, token);       // 회전
+
+            await Hardware_ZMove(FOUP_SLOTS_IN_POS[slotIdx], token); // 진입 높이
+            await Hardware_Cylinder("Forward", token);         // 전진
+
+            EtherCAT_M.Digital_Output(ROBOT_VACUUM_ON_PORT, true); // 진공 ON
+            await Task.Delay(500, token); // 흡착 대기
+            robotHasWafer = true;
+            foupACount--;
+            UpdateWaferUI();
+
+            await Hardware_ZMove(FOUP_SLOTS_POS[slotIdx], token); // 들어올리기 (Scoop)
+            await Hardware_Cylinder("Backward", token);        // 후진
+
+            // 3. 챔버로 이동
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+            await Hardware_ServoMove(targetAng, token);
+
+            // 4. Place
+            SetDoorState(targetPm, true); // (실제로는 하드웨어 IO 제어 필요: Hardware_SetDoor)
+            await Task.Delay(1000, token); // 도어 열림 대기
+
+            await Hardware_ZMove(CHAMBER_PLACE_VPOS, token);
+            await Hardware_Cylinder("Forward", token);
+
+            EtherCAT_M.Digital_Output(ROBOT_VACUUM_ON_PORT, false); // 진공 OFF
+            await Task.Delay(500, token);
+            robotHasWafer = false;
+
+            await Hardware_Cylinder("Backward", token);
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+            SetDoorState(targetPm, false); // 도어 닫기
+        }
+
+        // [하드웨어] 이송: Chamber -> Chamber
+        private async Task Hardware_Transfer_Chamber_to_Chamber(string srcPm, float srcAng, string destPm, float destAng, CancellationToken token)
+        {
+            // Source Pick
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+            await Hardware_ServoMove(srcAng, token);
+            SetDoorState(srcPm, true);
+            await Task.Delay(1000, token);
+
+            await Hardware_ZMove(CHAMBER_PLACE_VPOS, token);
+            await Hardware_Cylinder("Forward", token);
+            EtherCAT_M.Digital_Output(ROBOT_VACUUM_ON_PORT, true); // Vacuum ON
+            await Task.Delay(500, token);
+            robotHasWafer = true;
+
+            if (srcPm == "PMA") statusPmA = 0;
+            else if (srcPm == "PMB") statusPmB = 0;
+            UpdateProcessUI();
+
+            await Hardware_Cylinder("Backward", token);
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+            SetDoorState(srcPm, false);
+
+            // Dest Place
+            await Hardware_ServoMove(destAng, token);
+            SetDoorState(destPm, true);
+            await Task.Delay(1000, token);
+
+            await Hardware_ZMove(CHAMBER_PLACE_VPOS, token);
+            await Hardware_Cylinder("Forward", token);
+            EtherCAT_M.Digital_Output(ROBOT_VACUUM_ON_PORT, false); // Vacuum OFF
+            await Task.Delay(500, token);
+            robotHasWafer = false;
+
+            await Hardware_Cylinder("Backward", token);
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+            SetDoorState(destPm, false);
+        }
+
+        // [하드웨어] 배출: Chamber -> FOUP B
+        private async Task Hardware_Transfer_Chamber_to_FoupB(string srcPm, float srcAng, CancellationToken token)
+        {
+            int slotIdx = foupBCount;
+
+            // Pick from Chamber
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+            await Hardware_ServoMove(srcAng, token);
+            SetDoorState(srcPm, true);
+            await Task.Delay(1000, token);
+
+            await Hardware_ZMove(CHAMBER_PLACE_VPOS, token);
+            await Hardware_Cylinder("Forward", token);
+            EtherCAT_M.Digital_Output(ROBOT_VACUUM_ON_PORT, true);
+            await Task.Delay(500, token);
+            robotHasWafer = true;
+
+            if (srcPm == "PMC") statusPmC = 0;
+            UpdateProcessUI();
+
+            await Hardware_Cylinder("Backward", token);
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+            SetDoorState(srcPm, false);
+
+            // Place to FOUP B
+            await Hardware_ServoMove(ANG_FOUP_B, token);
+
+            await Hardware_ZMove(FOUP_SLOTS_POS[slotIdx], token); // Drop Pos
+            await Hardware_Cylinder("Forward", token);
+
+            EtherCAT_M.Digital_Output(ROBOT_VACUUM_ON_PORT, false);
+            await Task.Delay(500, token);
+            robotHasWafer = false;
+            foupBCount++;
+            UpdateWaferUI();
+
+            await Hardware_ZMove(FOUP_SLOTS_IN_POS[slotIdx], token); // Clearance
+            await Hardware_Cylinder("Backward", token);
+            await Hardware_ZMove(CHAMBER_VPOS, token);
+
+            // [안전 복귀] 작업 후 90도 구간 회피를 위해 중앙으로 복귀
+            await Hardware_ServoMove(ANG_PMA, token);
+        }
+
+        // [하드웨어 Wrapper] Z축 이동 및 대기
+        private async Task Hardware_ZMove(long targetPos, CancellationToken token)
+        {
+            // 명령 전송
+            EtherCAT_M.Axis1_UD_POS_Update(targetPos);
+            EtherCAT_M.Axis1_UD_Move_Send();
+
+            // 대기 (WaitAxis1 재활용)
+            await WaitAxis1(targetPos, token);
+        }
+
+        // [하드웨어 Wrapper] 서보 회전 및 대기
+        private async Task Hardware_ServoMove(float targetAng, CancellationToken token)
+        {
+            // 1. 회전 명령 전송 (목표 각도 -> Pulse 변환 로직 필요하나 여기선 UI 변수만 제어한다고 가정하고 시늉만 함)
+            // 실제로는 EtherCAT_M.Axis2_LR_POS_Update(Pulse값) 필요
+
+            // 시뮬레이션용 변수도 같이 업데이트해야 UI에서 로봇이 돌아가는게 보임
+            targetAngle = targetAng;
+
+            // Dead Zone 로직이 포함된 AnimateRobot이 돌면서 실제 모터는 별도로 돈다고 가정
+            // (만약 Axis2도 Pulse 제어라면 여기에 Pulse 변환 및 전송 코드 추가)
+            // 예: long pulse = AngleToPulse(targetAng); 
+            // EtherCAT_M.Axis2_LR_POS_Update(pulse);
+            // EtherCAT_M.Axis2_LR_Move_Send();
+
+            // 대기 (가상으로 UI 각도가 맞을 때까지 or 실제 인코더 값 확인)
+            await SimulateServoMove(targetAng, token);
+            // 주의: 실제 장비라면 await WaitAxis2(pulse)를 써야 함.
+        }
+
+        // [하드웨어 Wrapper] 실린더 전/후진 및 대기
+        private async Task Hardware_Cylinder(string cmd, CancellationToken token)
+        {
+            // 안전 체크
+            if (!CheckRobotSafety(cmd))
+                throw new Exception($"Safety Violation during {cmd}");
+
+            CylinderMove(cmd); // 기존 IO 명령 전송
+
+            // 센서가 없으므로 시간 대기 (2초)
+            await Task.Delay(2000, token);
+        }
+
+        // [보조] 홈 복귀 필요 여부 확인 (Dead Zone 근처인지)
+        private bool CheckNeedHomeReturn()
+        {
+            // 현재 각도(robotAngle)가 90도 근처라면 True
+            return (Math.Abs(robotAngle - 90) < 45);
+        }
+
+        private async Task RunSimulationTesting(CancellationToken token)
+        {
+            btnRobot.Enabled = false;
+            AddLog("Simul", "Scheduler", "--- Simulation Start ---");
+
+            // token.IsCancellationRequested가 true면 루프 즉시 탈출
+            while (!token.IsCancellationRequested && (foupACount > 0 || statusPmA != 0 || statusPmB != 0 || statusPmC != 0))
+            {
+                bool actionTaken = false;
+
+                // [수정] 각 함수 호출 시 token 전달
+                if (statusPmC == 2 && !robotHasWafer)
+                {
+                    await Transfer_Chamber_to_FoupB("PMC", ANG_PMC, token);
+                    actionTaken = true;
+                }
+                // ... (나머지 조건들도 동일하게 token 전달) ...
+                else if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
+                {
+                    await Transfer_FoupA_to_Chamber("PMA", ANG_PMA, token);
+
+                    // 백그라운드 공정도 취소 토큰 전달
+                    _ = RunProcessBackground("PMA", token);
+                    actionTaken = true;
+                }
+
+                if (!actionTaken)
+                {
+                    // [중요] 대기 중에도 취소 신호 오면 즉시 멈춤
+                    await Task.Delay(100, token);
+                }
+            }
+
+            if (!token.IsCancellationRequested)
+                MessageBox.Show("시뮬레이션 완료");
         }
 
         // =========================================================================
         // [백그라운드 공정 시뮬레이션] - 로봇을 잡지 않고 혼자 돌아감
         // =========================================================================
-        private async Task RunProcessBackground(string pmName)
+        private async Task RunProcessBackground(string pmName, CancellationToken token)
         {
             // 1. 해당 챔버의 레시피 시간 가져오기
             int targetDurationSec = 5; // 기본값
@@ -1343,7 +1592,7 @@ namespace SemiGUI
                 UpdateProcessUI();
 
                 // 계산된 시간만큼 대기 (레시피 시간에 따라 속도가 달라짐)
-                await Task.Delay(stepDelay);
+                await Task.Delay(stepDelay, token);
             }
 
             // 상태를 2(Done)로 변경
@@ -1361,50 +1610,50 @@ namespace SemiGUI
         // =========================================================================
 
         // 1. 투입: FOUP A -> Chamber (수정됨: 진입 전 안전 확인)
-        private async Task Transfer_FoupA_to_Chamber(string targetPm, float targetAng)
+        private async Task Transfer_FoupA_to_Chamber(string targetPm, float targetAng, CancellationToken token)
         {
             int slotIdx = foupACount - 1;
 
             // Go to FOUP A
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
-            await SimulateServoMove(ANG_FOUP_A);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
+            await SimulateServoMove(ANG_FOUP_A, token);
 
             // ... (이하 로직 기존과 동일) ...
-            await SimulateZMove(FOUP_SLOTS_IN_POS[slotIdx], "IN_POS");
-            await SimulateCylinder("Forward");
+            await SimulateZMove(FOUP_SLOTS_IN_POS[slotIdx], "IN_POS", token);
+            await SimulateCylinder("Forward", token);
             SetVacuum(true);
             foupACount--;
             UpdateWaferUI();
-            await SimulateZMove(FOUP_SLOTS_POS[slotIdx], "PICK_POS");
-            await SimulateCylinder("Backward");
+            await SimulateZMove(FOUP_SLOTS_POS[slotIdx], "PICK_POS", token);
+            await SimulateCylinder("Backward", token);
 
             // Move to Chamber
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
-            await SimulateServoMove(targetAng);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
+            await SimulateServoMove(targetAng, token);
 
             // Place
             SetDoorState(targetPm, true);
-            await Task.Delay(300);
-            await SimulateZMove(CHAMBER_PLACE_VPOS, "Place");
-            await SimulateCylinder("Forward");
+            await Task.Delay(300, token);
+            await SimulateZMove(CHAMBER_PLACE_VPOS, "Place", token);
+            await SimulateCylinder("Forward", token);
             SetVacuum(false);
-            await SimulateCylinder("Backward");
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
+            await SimulateCylinder("Backward", token);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
             SetDoorState(targetPm, false);
         }
 
         // 2. 이송: Chamber -> Chamber
-        private async Task Transfer_Chamber_to_Chamber(string srcPm, float srcAng, string destPm, float destAng)
+        private async Task Transfer_Chamber_to_Chamber(string srcPm, float srcAng, string destPm, float destAng, CancellationToken token)
         {
             // 1. Source Pick
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
-            await SimulateServoMove(srcAng);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
+            await SimulateServoMove(srcAng, token);
             SetDoorState(srcPm, true);
             await Task.Delay(300);
 
             // Pick 동작 (이미 완료된 웨이퍼 집기)
-            await SimulateZMove(CHAMBER_PLACE_VPOS, "Pick Height");
-            await SimulateCylinder("Forward");
+            await SimulateZMove(CHAMBER_PLACE_VPOS, "Pick Height", token);
+            await SimulateCylinder("Forward", token);
             SetVacuum(true);
 
             // 집어오면 Source는 비게 됨 (상태 0)
@@ -1412,8 +1661,8 @@ namespace SemiGUI
             else if (srcPm == "PMB") statusPmB = 0;
             UpdateProcessUI(); // 비워진 상태 즉시 반영
 
-            await SimulateCylinder("Backward");
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
+            await SimulateCylinder("Backward", token);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
             SetDoorState(srcPm, false);
 
             // 2. Dest Place
@@ -1431,47 +1680,47 @@ namespace SemiGUI
 
         // 3. 배출: Chamber -> FOUP B
         // 3. 배출: Chamber -> FOUP B (수정됨: 작업 후 안전 위치 복귀)
-        private async Task Transfer_Chamber_to_FoupB(string srcPm, float srcAng)
+        private async Task Transfer_Chamber_to_FoupB(string srcPm, float srcAng, CancellationToken token)
         {
             int slotIdx = foupBCount;
 
             // ... (Pick 로직 기존과 동일) ...
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
-            await SimulateServoMove(srcAng);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
+            await SimulateServoMove(srcAng, token);
             SetDoorState(srcPm, true);
-            await Task.Delay(300);
+            await Task.Delay(300, token);
 
-            await SimulateZMove(CHAMBER_PLACE_VPOS, "Pick");
-            await SimulateCylinder("Forward");
+            await SimulateZMove(CHAMBER_PLACE_VPOS, "Pick", token);
+            await SimulateCylinder("Forward", token);
             SetVacuum(true);
 
             if (srcPm == "PMC") statusPmC = 0;
             UpdateProcessUI();
 
-            await SimulateCylinder("Backward");
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
+            await SimulateCylinder("Backward", token);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
             SetDoorState(srcPm, false);
 
             // ... (Place 로직 기존과 동일) ...
-            await SimulateServoMove(ANG_FOUP_B);
+            await SimulateServoMove(ANG_FOUP_B, token);
 
-            await SimulateZMove(FOUP_SLOTS_POS[slotIdx], "DROP_POS");
-            await SimulateCylinder("Forward");
+            await SimulateZMove(FOUP_SLOTS_POS[slotIdx], "DROP_POS", token);
+            await SimulateCylinder("Forward", token);
             SetVacuum(false);
             foupBCount++;
             UpdateWaferUI();
 
-            await SimulateZMove(FOUP_SLOTS_IN_POS[slotIdx], "CLEARANCE");
-            await SimulateCylinder("Backward");
-            await SimulateZMove(CHAMBER_VPOS, "Safe");
+            await SimulateZMove(FOUP_SLOTS_IN_POS[slotIdx], "CLEARANCE", token);
+            await SimulateCylinder("Backward", token);
+            await SimulateZMove(CHAMBER_VPOS, "Safe", token);
         }
 
         // [헬퍼] Z축 이동 시뮬레이션 (로그 및 딜레이)
-        private async Task SimulateZMove(long pos, string desc)
+        private async Task SimulateZMove(long pos, string desc, CancellationToken token)
         {
             //AddLog("Simul", "Axis1", $"Moving Z to {desc} ({pos})");
             // 실제 이동처럼 보이게 약간의 딜레이
-            await Task.Delay(600);
+            await Task.Delay(600, token);
         }
 
         // [헬퍼] 진공 상태 설정 및 UI 갱신
@@ -1515,7 +1764,7 @@ namespace SemiGUI
         // -------------------------------------------------------------------------
 
         // 1. 서보 회전 시뮬레이션 (목표 각도까지 기다림)
-        private async Task SimulateServoMove(float targetAng)
+        private async Task SimulateServoMove(float targetAng, CancellationToken token)
         {
             targetAngle = targetAng;
             currentRobotState = ROBOT_STATE_ROTATE;
@@ -1524,13 +1773,13 @@ namespace SemiGUI
             // 각도가 거의 일치할 때까지 대기
             while (Math.Abs(robotAngle - targetAng) > 1.0f)
             {
-                await Task.Delay(50);
+                await Task.Delay(50, token);
             }
             isRobotMoving = false; // 도착하면 애니메이션 중단 플래그 (필요시)
         }
 
         // 2. 실린더 동작 시뮬레이션 (MAX 또는 0이 될 때까지 기다림)
-        private async Task SimulateCylinder(string cmd)
+        private async Task SimulateCylinder(string cmd, CancellationToken token)
         {
             isRobotMoving = true;
 
@@ -1542,7 +1791,7 @@ namespace SemiGUI
                 // 완전히 뻗을 때까지 대기
                 while (robotExtension < MAX_EXTENSION - 1.0f)
                 {
-                    await Task.Delay(50);
+                    await Task.Delay(50, token);
                 }
             }
             else // Backward
@@ -1841,53 +2090,6 @@ namespace SemiGUI
             RobotControl rc = new RobotControl() { Dock = DockStyle.Fill };
             robotForm.Controls.Add(rc);
             robotForm.ShowDialog();
-        }
-        private void ChamberA_SetDoor(bool isOpen)
-        {
-            if (isOpen)
-            {
-                EtherCAT_M.Digital_Output(5, true);    // P105 (하강)
-                EtherCAT_M.Digital_Output(4, false);   // P104 (상승)
-                isDoorOpenPmA = true;
-            }
-            else
-            {
-                EtherCAT_M.Digital_Output(5, false);   // P105 (하강)
-                EtherCAT_M.Digital_Output(4, true);    // P104 (상승)
-                isDoorOpenPmA = false;
-            }
-        }
-
-        private void ChamberB_SetDoor(bool isOpen)
-        {
-            if (isOpen)
-            {
-                EtherCAT_M.Digital_Output(8, true);    // P108 (하강)
-                EtherCAT_M.Digital_Output(7, false);   // P107 (상승)
-                isDoorOpenPmB = true;
-            }
-            else
-            {
-                EtherCAT_M.Digital_Output(8, false);   // P108 (하강)
-                EtherCAT_M.Digital_Output(7, true);    // P107 (상승)
-                isDoorOpenPmB = false;
-            }
-        }
-
-        private void ChamberC_SetDoor(bool isOpen)
-        {
-            if (isOpen)
-            {
-                EtherCAT_M.Digital_Output(11, true);    // P111 (하강)
-                EtherCAT_M.Digital_Output(10, false);   // P110 (상승)
-                isDoorOpenPmC = true;
-            }
-            else
-            {
-                EtherCAT_M.Digital_Output(11, false);   // P111 (하강)
-                EtherCAT_M.Digital_Output(10, true);    // P110 (상승)
-                isDoorOpenPmC = false;
-            }
         }
 
         private void CylinderMove(string command)
