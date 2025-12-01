@@ -448,54 +448,81 @@ namespace SemiGUI
 
         private void DrawRotatedFoup(Graphics g, int cx, int cy, float angle, string label, int waferCount)
         {
-            var state = g.Save(); // 좌표계 상태 저장
+            var state = g.Save(); // 좌표계 저장
 
+            // 1. 화면 중심으로 이동
             g.TranslateTransform(cx, cy);
-            g.RotateTransform(angle); // 1. 위치 각도로 회전
-            g.TranslateTransform(160, 0); // 2. 위치로 이동 (중심에서 160 거리)
 
-            // [수정] 3. 여기서 제자리 회전 (180도) -> 입구가 안쪽(로봇)을 바라보게 됨
+            // 2. 해당 FOUP의 위치 각도(135도, 45도)만큼 회전
+            g.RotateTransform(angle);
+
+            // 3. 중심에서 160 거리만큼 바깥으로 이동
+            g.TranslateTransform(160, 0);
+
+            // [핵심] 4. 제자리에서 180도 회전 (입구가 안쪽인 로봇을 향하게 함)
+            // 이 회전으로 인해 로컬 좌표계의 +X축이 '로봇(중심)'을 향하게 됩니다.
             g.RotateTransform(180);
 
-            // FOUP 박스 그리기 (-40~40 범위)
-            // 회전했으므로 +X 방향이 이제 로봇 중심을 향하는 방향임
-            Rectangle foupRect = new Rectangle(-40, -40, 80, 80);
-            g.FillRectangle(Brushes.Silver, foupRect);
+            // --- 시각적 개선 그리기 시작 ---
 
-            // [수정] 입구(로봇 쪽, +X 면)를 제외하고 테두리 그리기
-            // 위쪽(-Y), 뒤쪽(-X), 아래쪽(+Y) 선만 그림
-            using (Pen p = new Pen(Color.DimGray, 2))
+            // A. 바닥면 (Silver) - 약간 투명하게 하여 내부 느낌 냄
+            Rectangle foupRect = new Rectangle(-40, -40, 80, 80);
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(200, 220, 220, 220))) // 연한 회색
             {
-                g.DrawLine(p, -40, -40, 40, -40); // Top (relative)
-                g.DrawLine(p, -40, -40, -40, 40); // Back
-                g.DrawLine(p, -40, 40, 40, 40);   // Bottom
-                // Front (+X side) is open
+                g.FillRectangle(bgBrush, foupRect);
             }
 
-            // 라벨 그리기 (FOUP 바깥쪽)
-            // 현재 180도 돌린 상태이므로 글자도 뒤집힘 -> 역회전 필요
-            // 글자 위치: 박스 뒤쪽(-X) 너머
+            // B. 벽면 그리기 (뒷면을 두껍게, 옆면은 일반)
+            using (Pen wallPen = new Pen(Color.DimGray, 2))
+            using (Pen backPen = new Pen(Color.FromArgb(80, 80, 80), 4)) // 뒷면은 진하고 두껍게
+            {
+                // 옆면 (Top & Bottom in local coords)
+                g.DrawLine(wallPen, -40, -40, 40, -40); // 위쪽 벽
+                g.DrawLine(wallPen, -40, 40, 40, 40);   // 아래쪽 벽
+
+                // 뒷면 (Back - 로봇 반대편, 즉 바깥쪽)
+                g.DrawLine(backPen, -40, -40, -40, 40);
+            }
+
+            // C. 뒷면에 '손잡이' 모양 추가 (여기가 뒷면임을 확실히 함)
+            using (SolidBrush handleBrush = new SolidBrush(Color.Gray))
+            {
+                // 뒷면 벽(-40)보다 더 뒤쪽(-48)에 손잡이 그림
+                g.FillRectangle(handleBrush, -48, -15, 6, 30);
+            }
+
+            // D. 라벨 그리기 (FOUP 바깥쪽/뒤쪽에 위치)
             using (Font f = new Font("Arial", 10, FontStyle.Bold))
             {
                 var labelState = g.Save();
-                g.TranslateTransform(-50, 0); // 박스 뒤쪽으로 이동
-                g.RotateTransform(-180);      // 글자 똑바로 (상대적 180도 회전 복구)
-                g.RotateTransform(-angle);    // 전체 각도 역회전 (화면 기준 수평 유지)
+                g.TranslateTransform(-60, 0); // 박스 뒤쪽으로 넉넉히 이동
+
+                // 텍스트가 뒤집히지 않도록 역회전 보정
+                g.RotateTransform(-180);
+                g.RotateTransform(-angle);
 
                 SizeF size = g.MeasureString(label, f);
                 g.DrawString(label, f, Brushes.Black, -size.Width / 2, -size.Height / 2);
                 g.Restore(labelState);
             }
 
-            // 웨이퍼 슬롯 그리기
+            // E. 웨이퍼 슬롯 그리기 (안쪽에 배치)
             for (int i = 0; i < 5; i++)
             {
-                Brush brush = (i < waferCount) ? Brushes.Blue : Brushes.Black;
-                // 슬롯 위치: 뒤쪽(-X)에서 시작해서 앞쪽으로 뻗음
-                g.FillRectangle(brush, -30, -20 + (i * 12), 60, 8);
+                Brush brush = (i < waferCount) ? Brushes.Blue : Brushes.Black; // 빈 슬롯은 연하게
+                                                                                                 // 슬롯: 뒷면(-40) 근처에서 시작해 입구(+40) 쪽으로 뻗음
+                g.FillRectangle(brush, -35, -20 + (i * 12), 65, 8);
             }
 
-            g.Restore(state); // 좌표계 상태 복구 (회전 취소)
+            // F. 입구 쪽에 '가이드 핀' 살짝 그려서 열려있음을 표현
+            using (Pen guidePen = new Pen(Color.Gray, 2))
+            {
+                // 입구 끝단(x=40) 위아래에 짧은 선
+                g.DrawLine(guidePen, 40, -40, 40, -30);
+                g.DrawLine(guidePen, 40, 40, 40, 30);
+            }
+
+            g.Restore(state); // 좌표계 복구
         }
 
         private void pnlAlarm_Paint(object sender, PaintEventArgs e)
