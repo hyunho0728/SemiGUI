@@ -46,6 +46,9 @@ namespace SemiGUI
         private string robotDestination = "";
         private string robotSource = "";
 
+        // [추가] 설정값 변수
+        private float robotSpeed = 10.0f;
+
         private const float ANG_PMC = 0;
         private const float ANG_FOUP_B = 45;
         private const float ANG_FOUP_A = 135;
@@ -68,11 +71,13 @@ namespace SemiGUI
             this.StartPosition = FormStartPosition.CenterScreen;
 
             SetupLogic();
+            LoadSystemConfig(); // [추가] 초기 설정 로드
             CreateAutoRunButton();
 
             this.btnMain.Click += BtnMain_Click;
             this.btnRecipe.Click += BtnRecipe_Click;
             this.btnLog.Click += BtnLog_Click;
+            this.btnConfig.Click += BtnConfig_Click; // [추가] 이벤트 연결
             this.btnLogin.Click += BtnLogin_Click;
 
             this.btnConnect.Click += (s, e) => {
@@ -82,7 +87,7 @@ namespace SemiGUI
             this.btnLoadA.Click += (s, e) => {
                 foupACount = 5;
                 UpdateWaferUI();
-                AddLog("Info", "FOUP A", "Carrier Loaded manually"); // 로그 추가
+                AddLog("Info", "FOUP A", "Carrier Loaded manually");
             };
             this.btnUnloadA.Click += (s, e) => { foupACount = 0; UpdateWaferUI(); };
             this.btnLoadB.Click += (s, e) => { foupBCount = 5; UpdateWaferUI(); };
@@ -102,6 +107,59 @@ namespace SemiGUI
 
             // [수정] 프로그램 시작 시 UI 상태 동기화 (디자이너 잔상 방지)
             UpdateProcessUI();
+        }
+
+        // [신규] 설정 로드 함수
+        private void LoadSystemConfig()
+        {
+            try
+            {
+                using (MySqlConnection conn = new MySqlConnection(connectionString))
+                {
+                    conn.Open();
+                    // 설정 테이블이 비어있으면 기본값 삽입
+                    string initSql = "INSERT IGNORE INTO sys_config (cfg_key, cfg_value) VALUES ('RobotSpeed', '10'), ('TimerInterval', '50')";
+                    using (MySqlCommand cmd = new MySqlCommand(initSql, conn)) cmd.ExecuteNonQuery();
+
+                    string sql = "SELECT cfg_key, cfg_value FROM sys_config";
+                    using (MySqlCommand cmd = new MySqlCommand(sql, conn))
+                    using (MySqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            string key = reader.GetString("cfg_key");
+                            string val = reader.GetString("cfg_value");
+
+                            if (key == "RobotSpeed") float.TryParse(val, out robotSpeed);
+                            if (key == "TimerInterval")
+                            {
+                                int interval;
+                                if (int.TryParse(val, out interval))
+                                {
+                                    if (sysTimer != null) sysTimer.Interval = interval;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch { /* 초기화 전이거나 DB 에러 시 기본값 사용 */ }
+        }
+
+        private void BtnConfig_Click(object sender, EventArgs e)
+        {
+            Form cPop = new Form() { Text = "Configuration", Size = new Size(820, 640), StartPosition = FormStartPosition.CenterScreen };
+            ConfigControl cc = new ConfigControl() { Dock = DockStyle.Fill };
+
+            // 설정 저장 시 메인 폼에도 즉시 적용
+            cc.ConfigSaved += (s2, e2) => {
+                LoadSystemConfig();
+                AddLog("Event", "System", "Configuration Updated");
+            };
+
+            cc.btnClose.Click += (s2, e2) => cPop.Close();
+            cPop.Controls.Add(cc);
+            cPop.ShowDialog();
         }
 
         // [신규] 로그 저장 함수
@@ -125,8 +183,7 @@ namespace SemiGUI
             }
             catch (Exception)
             {
-                // 로그 저장 실패 시 메인 로직에 방해되지 않도록 예외 무시 (혹은 디버그 출력)
-                // Console.WriteLine(ex.Message);
+                // 로그 저장 실패 시 메인 로직에 방해되지 않도록 예외 무시
             }
         }
 
@@ -138,9 +195,9 @@ namespace SemiGUI
             statusPmC = 0; progressC = 0;
 
             UpdateProcessUI();
-            pnlCenter.Invalidate(); // 화면 갱신 (챔버 색상 원래대로)
+            pnlCenter.Invalidate();
 
-            AddLog("Info", "System", "Chambers reset by user"); // 로그 추가
+            AddLog("Info", "System", "Chambers reset by user");
             MessageBox.Show("모든 챔버 상태가 초기화되었습니다.", "Reset Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
@@ -157,6 +214,10 @@ namespace SemiGUI
                     conn.ChangeDatabase("SemiGuiData");
                     using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS logs (id INT AUTO_INCREMENT PRIMARY KEY, timestamp DATETIME NOT NULL, type VARCHAR(50), equipment VARCHAR(100), message TEXT)", conn)) cmd.ExecuteNonQuery();
                     using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS recipes (name VARCHAR(100) PRIMARY KEY, pmA_target VARCHAR(50), pmA_gas VARCHAR(50), pmA_time VARCHAR(50), pmB_align VARCHAR(50), pmB_rpm VARCHAR(50), pmB_time VARCHAR(50), pmC_press VARCHAR(50), pmC_gas VARCHAR(50), pmC_time VARCHAR(50))", conn)) cmd.ExecuteNonQuery();
+
+                    // [추가] 설정 테이블 생성
+                    using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS sys_config (cfg_key VARCHAR(50) PRIMARY KEY, cfg_value VARCHAR(100))", conn)) cmd.ExecuteNonQuery();
+
                     using (MySqlCommand cmd = new MySqlCommand("SELECT COUNT(*) FROM recipes", conn))
                     {
                         if (Convert.ToInt32(cmd.ExecuteScalar()) == 0)
@@ -184,9 +245,9 @@ namespace SemiGUI
 
         private void SetupLogic()
         {
-            this.DoubleBuffered = true; // 폼 자체의 깜빡임 방지
+            this.DoubleBuffered = true;
 
-            // [수정] pnlCenter 패널의 깜빡임 방지를 위해 DoubleBuffered 속성을 강제로 true로 설정
+            // [수정] pnlCenter 패널의 깜빡임 방지
             typeof(Panel).InvokeMember("DoubleBuffered",
                 System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
                 null, pnlCenter, new object[] { true });
@@ -199,16 +260,14 @@ namespace SemiGUI
             };
             clockTimer.Start();
             sysTimer = new Timer();
-            sysTimer.Interval = 50;
+            sysTimer.Interval = 50; // 기본값 (나중에 DB에서 로드됨)
             sysTimer.Tick += SysTimer_Tick;
         }
 
         private void SysTimer_Tick(object sender, EventArgs e)
         {
-            // [추가] 알람 로직 체크
             CheckAlarms();
 
-            // 1. 로봇이 움직이는 중이면 애니메이션만 처리
             if (isRobotMoving)
             {
                 AnimateRobot();
@@ -216,29 +275,21 @@ namespace SemiGUI
                 return;
             }
 
-            // 2. 공정 진행
             SimulateProcess();
 
-            // 3. 스케줄링
-            // [CASE 1] PM C 완료 -> FOUP B로 배출 (단, FOUP B가 꽉 차있으면 이동 불가)
+            // 스케줄링
             if (statusPmC == 2 && !robotHasWafer)
             {
-                if (foupBCount < 5) // [중요] 꽉 차지 않았을 때만 이동 시작
-                {
-                    StartRobotMove("PMC", "FOUP_B");
-                }
+                if (foupBCount < 5) StartRobotMove("PMC", "FOUP_B");
             }
-            // [CASE 2] PM B 완료 & PM C 비어있음 -> B에서 C로 이동
             else if (statusPmB == 2 && statusPmC == 0 && !robotHasWafer)
             {
                 StartRobotMove("PMB", "PMC");
             }
-            // [CASE 3] PM A 완료 & PM B 비어있음 -> A에서 B로 이동
             else if (statusPmA == 2 && statusPmB == 0 && !robotHasWafer)
             {
                 StartRobotMove("PMA", "PMB");
             }
-            // [CASE 4] FOUP A에 웨이퍼 있음 & PM A 비어있음 -> 투입
             else if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
             {
                 StartRobotMove("FOUP_A", "PMA");
@@ -248,86 +299,69 @@ namespace SemiGUI
             pnlCenter.Invalidate();
         }
 
-        // [수정] 알람 체크 메서드 (로그 기록 추가)
         private void CheckAlarms()
         {
             int prevLevel = currentAlarmLevel;
             currentAlarmLevel = 0;
             string msg = "";
 
-            // Danger 조건: FOUP B가 꽉 찼는데 PM C에서 배출 대기 중 (병목 발생)
             if (foupBCount >= 5 && statusPmC == 2)
             {
-                currentAlarmLevel = 2; // Danger
+                currentAlarmLevel = 2;
                 msg = "DANGER: FOUP B Full!";
             }
-            // Warning 조건: FOUP A 소진
             else if (foupACount == 0)
             {
-                currentAlarmLevel = 1; // Warning
+                currentAlarmLevel = 1;
                 msg = "WARNING: FOUP A Empty";
             }
             else
             {
-                currentAlarmLevel = 0; // Normal
+                currentAlarmLevel = 0;
                 msg = "System Normal";
             }
 
-            // 상태 변경 시 UI 갱신 및 로그 저장
             if (prevLevel != currentAlarmLevel)
             {
-                // UI 갱신
                 if (currentAlarmLevel > 0) lblAlarmMsg.Text = msg;
                 else lblAlarmMsg.Text = "";
 
-                pnlAlarm.Invalidate(); // 알람 패널 다시 그리기
+                pnlAlarm.Invalidate();
 
-                // 로그 저장 (상태가 변할 때만)
                 string logType = "Info";
                 if (currentAlarmLevel == 1) logType = "Warning";
                 else if (currentAlarmLevel == 2) logType = "Alarm";
 
-                // Normal로 돌아올 때도 로그를 남기고 싶다면 아래 주석 해제
-                if (currentAlarmLevel > 0) // 경고/위험 발생 시에만 기록
-                {
-                    AddLog(logType, "System", msg);
-                }
-                else if (prevLevel > 0 && currentAlarmLevel == 0)
-                {
-                    AddLog("Info", "System", "Alarm Cleared (Normal)");
-                }
+                if (currentAlarmLevel > 0) AddLog(logType, "System", msg);
+                else if (prevLevel > 0 && currentAlarmLevel == 0) AddLog("Info", "System", "Alarm Cleared (Normal)");
             }
         }
 
-        // [추가] 알람 아이콘 그리기 이벤트
         private void pnlAlarm_Paint(object sender, PaintEventArgs e)
         {
-            if (currentAlarmLevel == 0) return; // 정상일 땐 안 그림
+            if (currentAlarmLevel == 0) return;
 
             Graphics g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // 삼각형 좌표 계산 (패널 크기 60x60 기준)
             Point[] trianglePoints = {
-                new Point(30, 5),   // Top
-                new Point(5, 55),   // Bottom Left
-                new Point(55, 55)   // Bottom Right
+                new Point(30, 5),
+                new Point(5, 55),
+                new Point(55, 55)
             };
 
-            if (currentAlarmLevel == 2) // Danger (Red Triangle)
+            if (currentAlarmLevel == 2)
             {
                 g.FillPolygon(Brushes.Red, trianglePoints);
-                // 흰색 느낌표
                 using (Font f = new Font("Arial", 24, FontStyle.Bold))
                 {
                     SizeF size = g.MeasureString("!", f);
                     g.DrawString("!", f, Brushes.White, 30 - size.Width / 2, 35 - size.Height / 2);
                 }
             }
-            else if (currentAlarmLevel == 1) // Warning (Yellow Triangle)
+            else if (currentAlarmLevel == 1)
             {
                 g.FillPolygon(Brushes.Gold, trianglePoints);
-                // 흰색 느낌표
                 using (Font f = new Font("Arial", 24, FontStyle.Bold))
                 {
                     SizeF size = g.MeasureString("!", f);
@@ -347,7 +381,8 @@ namespace SemiGUI
 
         private void AnimateRobot()
         {
-            float speed = 10.0f;
+            // [수정] 변수 대신 설정된 robotSpeed 사용
+            float speed = this.robotSpeed;
             float diff = targetAngle - robotAngle;
 
             while (diff <= -180) diff += 360;
@@ -381,8 +416,6 @@ namespace SemiGUI
                     robotHasWafer = false;
                     isRobotMoving = false;
 
-                    // [수정] 챔버에 웨이퍼를 넣을 때 해당 챔버의 진행률도 초기화 (잔여 게이지 문제 해결)
-                    // [추가] 이동 완료 로그 기록
                     AddLog("Transfer", "Robot", $"Wafer moved: {robotSource} > {robotDestination}");
 
                     if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
@@ -480,7 +513,6 @@ namespace SemiGUI
             pnlWaferR5.BackColor = foupBCount >= 1 ? Color.Blue : Color.Black;
         }
 
-        // ... (ApplyRecipeData, UpdateLayout, SetLoginState, BtnLogin_Click, pnlCenter_Paint 등 기존 메서드 유지) ...
         private void ApplyRecipeData(RecipeControl.RecipeModel data)
         {
             if (data.PmA_Params != null)
@@ -608,5 +640,7 @@ namespace SemiGUI
             lPop.Controls.Add(lc);
             lPop.Show();
         }
+
+        // Config 버튼 이벤트 핸들러는 위 생성자에서 연결함 (BtnConfig_Click)
     }
 }

@@ -303,10 +303,41 @@
 
             // Bottom Panel
             this.pnlBottom.Dock = System.Windows.Forms.DockStyle.Bottom; this.pnlBottom.Height = 60; this.pnlBottom.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.btnMain.Text = "MAIN"; this.btnMain.Location = new System.Drawing.Point(830, 5); this.btnMain.Size = new System.Drawing.Size(80, 50); this.btnMain.BackColor = System.Drawing.Color.White;
-            this.btnRecipe.Text = "RECIPE"; this.btnRecipe.Location = new System.Drawing.Point(920, 5); this.btnRecipe.Size = new System.Drawing.Size(80, 50); this.btnRecipe.BackColor = System.Drawing.Color.White;
-            this.btnLog.Text = "LOG"; this.btnLog.Location = new System.Drawing.Point(1010, 5); this.btnLog.Size = new System.Drawing.Size(80, 50); this.btnLog.BackColor = System.Drawing.Color.White;
-            this.pnlBottom.Controls.Add(this.btnMain); this.pnlBottom.Controls.Add(this.btnRecipe); this.pnlBottom.Controls.Add(this.btnLog);
+
+            // 버튼들을 중앙 정렬하기 위해 X 좌표 조정 (화면 너비 1920 기준)
+            // 전체 버튼 그룹 너비: (80*4) + (10*3) = 350
+            // 시작점: (1920 - 350) / 2 = 785
+
+            this.btnMain.Text = "MAIN";
+            this.btnMain.Location = new System.Drawing.Point(785, 5);
+            this.btnMain.Size = new System.Drawing.Size(80, 50);
+            this.btnMain.BackColor = System.Drawing.Color.White;
+
+            this.btnRecipe.Text = "RECIPE";
+            this.btnRecipe.Location = new System.Drawing.Point(875, 5); // 785 + 90
+            this.btnRecipe.Size = new System.Drawing.Size(80, 50);
+            this.btnRecipe.BackColor = System.Drawing.Color.White;
+
+            this.btnLog.Text = "LOG";
+            this.btnLog.Location = new System.Drawing.Point(965, 5); // 875 + 90
+            this.btnLog.Size = new System.Drawing.Size(80, 50);
+            this.btnLog.BackColor = System.Drawing.Color.White;
+
+            // [추가] CONFIG 버튼
+            this.btnConfig = new System.Windows.Forms.Button();
+            this.btnConfig.Text = "CONFIG";
+            this.btnConfig.Location = new System.Drawing.Point(1055, 5); // 965 + 90
+            this.btnConfig.Size = new System.Drawing.Size(80, 50);
+            this.btnConfig.BackColor = System.Drawing.Color.White;
+
+            // [수정] 모든 하단 버튼을 pnlBottom에 추가
+            this.pnlBottom.Controls.Add(this.btnMain);
+            this.pnlBottom.Controls.Add(this.btnRecipe);
+            this.pnlBottom.Controls.Add(this.btnLog);
+            this.pnlBottom.Controls.Add(this.btnConfig);
+
+            // Center Panel
+            this.pnlCenter.Dock = System.Windows.Forms.DockStyle.Fill;
 
             // Center Panel
             this.pnlCenter.Dock = System.Windows.Forms.DockStyle.Fill;
@@ -481,7 +512,8 @@
         private System.Windows.Forms.Panel pnlAlarm;
         private System.Windows.Forms.Label lblAlarmMsg;
 
-        // [추가] 리셋 버튼 선언
         private System.Windows.Forms.Button btnResetChambers;
+
+        private System.Windows.Forms.Button btnConfig;
     }
 }

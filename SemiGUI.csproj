@@ -95,6 +95,12 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ConfigControl.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="ConfigControl.Designer.cs">
+      <DependentUpon>ConfigControl.cs</DependentUpon>
+    </Compile>
     <Compile Include="Form1.cs">
       <SubType>Form</SubType>
     </Compile>
