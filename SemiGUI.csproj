@@ -124,6 +124,12 @@
     <Compile Include="RecipeControl.Designer.cs">
       <DependentUpon>RecipeControl.cs</DependentUpon>
     </Compile>
+    <Compile Include="RobotControl.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="RobotControl.Designer.cs">
+      <DependentUpon>RobotControl.cs</DependentUpon>
+    </Compile>
     <EmbeddedResource Include="Form1.resx">
       <DependentUpon>Form1.cs</DependentUpon>
     </EmbeddedResource>

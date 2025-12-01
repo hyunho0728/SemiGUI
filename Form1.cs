@@ -130,7 +130,8 @@ namespace SemiGUI
             this.btnConfig.Click += BtnConfig_Click;
             this.btnLogin.Click += BtnLogin_Click;
 
-            this.btnLoadA.Click += (s, e) => {
+            this.btnLoadA.Click += (s, e) =>
+            {
                 foupACount = 5;
                 UpdateWaferUI();
                 pnlCenter.Invalidate();
@@ -197,7 +198,8 @@ namespace SemiGUI
             Form cPop = new Form() { Text = "Configuration", Size = new Size(820, 640), StartPosition = FormStartPosition.CenterScreen };
             ConfigControl cc = new ConfigControl() { Dock = DockStyle.Fill };
 
-            cc.ConfigSaved += (s2, e2) => {
+            cc.ConfigSaved += (s2, e2) =>
+            {
                 LoadSystemConfig();
                 AddLog("Event", "System", "Configuration Updated");
             };
@@ -248,6 +250,25 @@ namespace SemiGUI
         private void btnResetRobot_Click(object sender, EventArgs e)
         {
             ResetRobotState();
+
+            // [추가] 하드웨어 연결 시 로봇 상하/좌우 원점 복귀(Homing) 실행
+            if (isEtherConnected)
+            {
+                try
+                {
+                    // 라이브러리 메서드를 통해 각 축 원점 복귀 명령 전송
+                    // (라이브러리 메서드명: Homming)
+                    EtherCAT_M.Axis1_UD_Homming(); // 상하 축 원점 복귀
+                    EtherCAT_M.Axis2_LR_Homming(); // 좌우 축 원점 복귀
+
+                    AddLog("Info", "Robot", "Hardware Origin Return (Homing) Started");
+                }
+                catch (Exception ex)
+                {
+                    AddLog("Error", "Robot", $"Homing Failed: {ex.Message}");
+                    MessageBox.Show($"원점 복귀 명령 실패: {ex.Message}", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                }
+            }
         }
 
         private void ResetRobotState()
@@ -312,7 +333,8 @@ namespace SemiGUI
             btnAutoRun.Location = new Point(750, 10);
             btnAutoRun.BackColor = Color.LightGray;
             btnAutoRun.Font = new Font("Arial", 10, FontStyle.Bold);
-            btnAutoRun.Click += (s, e) => {
+            btnAutoRun.Click += (s, e) =>
+            {
                 if (isLoggedIn)
                 {
                     ToggleAutoRun();
@@ -335,7 +357,8 @@ namespace SemiGUI
 
             clockTimer = new Timer();
             clockTimer.Interval = 1000;
-            clockTimer.Tick += (s, e) => {
+            clockTimer.Tick += (s, e) =>
+            {
                 if (lblTime != null) lblTime.Text = DateTime.Now.ToString("HH:mm:ss");
                 if (lblDate != null) lblDate.Text = DateTime.Now.ToString("yyyy/MM/dd");
             };
@@ -350,7 +373,7 @@ namespace SemiGUI
         {
             CheckAlarms();
 
-            SyncHardwareIO();
+            //SyncHardwareIO();
 
             // 1. 공정 시뮬레이션 시작 트리거 (비동기 함수 호출)
             // 상태가 1(Running)이고 아직 비동기 작업이 시작되지 않았다면 시작
@@ -675,7 +698,7 @@ namespace SemiGUI
             else if (src == "FOUP_B") slotIdx = foupBCount - 1;
 
             // 1차 이동: 물건을 가지러(Source) 감
-            MoveRobotHardware(src, slotIdx);
+            //MoveRobotHardware(src, slotIdx);
         }
 
         private void AnimateRobot()
@@ -781,7 +804,7 @@ namespace SemiGUI
                             if (robotDestination == "FOUP_A") slotIdx = foupACount; // 놓을 빈 공간
                             else if (robotDestination == "FOUP_B") slotIdx = foupBCount;
 
-                            MoveRobotHardware(robotDestination, slotIdx);
+                            //MoveRobotHardware(robotDestination, slotIdx);
                         }
                         else
                         {
@@ -999,7 +1022,72 @@ namespace SemiGUI
 
         // [수정] 하드웨어 IO 동기화 (로봇 동작 단계별 도어 제어 강화)
         // [수정] 하드웨어 IO 동기화 (공정 중 도어 닫힘 유지)
-        private void SyncHardwareIO()
+
+        private void btnConnect_Click(object sender, EventArgs e)
+        {
+            if (!isEtherConnected)
+            {
+                // 연결 시도
+                if (EtherCAT_M.CIFX_50RE_Connect() == true)
+                {
+                    isEtherConnected = true;
+                    btnConnect.Text = "DISCONNECT";
+                    btnConnect.BackColor = Color.LimeGreen; // 연결 성공 시 녹색
+                    lblHostState.Text = "ONLINE"; // HOST 상태 표시 연동 (선택사항)
+
+                    EtherCAT_M.ReadData_Send_Start(300); // Timer interval Set
+                    EtherCAT_M.ReadData_Timer_Start();   // Timer Start
+
+                    // [추가] Servo ON (필수)
+                    EtherCAT_M.Axis1_ON(); // Up/Down
+                    EtherCAT_M.Axis2_ON(); // Left/Right
+
+                    //Axis Parameter Update
+                    EtherCAT_M.Axis1_UD_Config_Update(1000000, 1000000, 1000000, 1000000);
+                    EtherCAT_M.Axis2_LR_Config_Update(1000000, 1000000, 1000000, 1000000);
+
+                    AddLog("Event", "System", "EtherCAT Connected Success");
+                }
+                else
+                {
+                    MessageBox.Show("EtherCAT 연결 실패", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    AddLog("Error", "System", "EtherCAT Connection Failed");
+                }
+            }
+            else
+            {
+                // [추가] Servo OFF
+                EtherCAT_M.Axis1_OFF();
+                EtherCAT_M.Axis2_OFF();
+
+                // 연결 해제
+                EtherCAT_M.CIFX_50RE_Disconnect();
+                isEtherConnected = false;
+
+                btnConnect.Text = "CONNECT";
+                btnConnect.BackColor = Color.Khaki; // 원래 색상 복구
+                lblHostState.Text = "OFFLINE";
+
+                AddLog("Event", "System", "EtherCAT Disconnected");
+            }
+        }
+
+        private void testing()
+        {
+
+        }
+
+        private void btnRobot_Click(object sender, EventArgs e)
+        {
+            Form robotForm = new Form() { Text = "Robot", Size = new Size(1263, 759), StartPosition = FormStartPosition.CenterScreen };
+            RobotControl rc = new RobotControl() { Dock = DockStyle.Fill };
+            rc.ApplyToMainRequested += (s2, data) => ApplyRecipeData(data);
+            rc.btnCancel.Click += (s2, e2) => rPop.Close();
+            rPop.Controls.Add(rc);
+            rPop.ShowDialog();
+        }
+
+        /*private void SyncHardwareIO()
         {
             if (!isEtherConnected) return;
 
@@ -1083,50 +1171,7 @@ namespace SemiGUI
         }
 
         // [추가] EtherCAT 연결/해제 버튼 핸들러
-        private void btnConnect_Click(object sender, EventArgs e)
-        {
-            if (!isEtherConnected)
-            {
-                // 연결 시도
-                if (EtherCAT_M.CIFX_50RE_Connect() == true)
-                {
-                    isEtherConnected = true;
-                    btnConnect.Text = "DISCONNECT";
-                    btnConnect.BackColor = Color.LimeGreen; // 연결 성공 시 녹색
-                    lblHostState.Text = "ONLINE"; // HOST 상태 표시 연동 (선택사항)
-
-                    EtherCAT_M.ReadData_Send_Start(300); // Timer interval Set
-                    EtherCAT_M.ReadData_Timer_Start();   // Timer Start
-
-                    // [추가] Servo ON (필수)
-                    EtherCAT_M.Axis1_ON(); // Up/Down
-                    EtherCAT_M.Axis2_ON(); // Left/Right
-
-                    AddLog("Event", "System", "EtherCAT Connected Success");
-                }
-                else
-                {
-                    MessageBox.Show("EtherCAT 연결 실패", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    AddLog("Error", "System", "EtherCAT Connection Failed");
-                }
-            }
-            else
-            {
-                // [추가] Servo OFF
-                EtherCAT_M.Axis1_OFF();
-                EtherCAT_M.Axis2_OFF();
-
-                // 연결 해제
-                EtherCAT_M.CIFX_50RE_Disconnect();
-                isEtherConnected = false;
-
-                btnConnect.Text = "CONNECT";
-                btnConnect.BackColor = Color.Khaki; // 원래 색상 복구
-                lblHostState.Text = "OFFLINE";
-
-                AddLog("Event", "System", "EtherCAT Disconnected");
-            }
-        }
+        
         private void MoveRobotHardware(string destination, int slotIndex = 0)
         {
             if (!isEtherConnected) return;
@@ -1202,5 +1247,12 @@ namespace SemiGUI
         {
             MoveRobotSafely("PMA", 0);
         }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            EtherCAT_M.Axis2_LR_POS_Update(13500);
+            EtherCAT_M.Axis2_LR_Move_Send();
+        }
+    }*/
     }
 }
