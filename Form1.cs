@@ -313,42 +313,42 @@ namespace SemiGUI
         {
             CheckAlarms();
 
+            // 1. 공정 시뮬레이션: 로봇의 상태와 무관하게 항상 실행 (병렬 처리 효과)
+            SimulateProcess();
+
+            // 2. 로봇 애니메이션
             if (isRobotMoving)
             {
                 AnimateRobot();
-                pnlCenter.Invalidate();
-                return;
             }
-
-            if (isResetting)
+            // 3. 리셋 처리 (로봇 이동이 끝났고 리셋 모드일 때)
+            else if (isResetting)
             {
-                if (!isRobotMoving)
+                isResetting = false;
+                if (!isAutoRun) sysTimer.Stop();
+            }
+            // 4. 새로운 명령 확인 (로봇이 IDLE 상태이고 리셋 중이 아닐 때만)
+            else
+            {
+                if (statusPmC == 2 && !robotHasWafer)
                 {
-                    isResetting = false;
-                    if (!isAutoRun) sysTimer.Stop();
+                    if (foupBCount < 5) StartRobotMove("PMC", "FOUP_B");
                 }
-                return;
+                else if (statusPmB == 2 && statusPmC == 0 && !robotHasWafer)
+                {
+                    StartRobotMove("PMB", "PMC");
+                }
+                else if (statusPmA == 2 && statusPmB == 0 && !robotHasWafer)
+                {
+                    StartRobotMove("PMA", "PMB");
+                }
+                else if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
+                {
+                    StartRobotMove("FOUP_A", "PMA");
+                }
             }
 
-            SimulateProcess();
-
-            if (statusPmC == 2 && !robotHasWafer)
-            {
-                if (foupBCount < 5) StartRobotMove("PMC", "FOUP_B");
-            }
-            else if (statusPmB == 2 && statusPmC == 0 && !robotHasWafer)
-            {
-                StartRobotMove("PMB", "PMC");
-            }
-            else if (statusPmA == 2 && statusPmB == 0 && !robotHasWafer)
-            {
-                StartRobotMove("PMA", "PMB");
-            }
-            else if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
-            {
-                StartRobotMove("FOUP_A", "PMA");
-            }
-
+            // 5. UI 업데이트 및 화면 다시 그리기
             UpdateProcessUI();
             pnlCenter.Invalidate();
         }
@@ -459,67 +459,66 @@ namespace SemiGUI
             // 3. 중심에서 160 거리만큼 바깥으로 이동
             g.TranslateTransform(160, 0);
 
-            // [핵심] 4. 제자리에서 180도 회전 (입구가 안쪽인 로봇을 향하게 함)
-            // 이 회전으로 인해 로컬 좌표계의 +X축이 '로봇(중심)'을 향하게 됩니다.
+            // 4. [핵심] 180도 회전 -> 로컬 좌표계의 +X축(입구)이 로봇(중심)을 향하게 됨
             g.RotateTransform(180);
 
-            // --- 시각적 개선 그리기 시작 ---
-
-            // A. 바닥면 (Silver) - 약간 투명하게 하여 내부 느낌 냄
+            // [1] FOUP 바닥면 (배경)
             Rectangle foupRect = new Rectangle(-40, -40, 80, 80);
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(200, 220, 220, 220))) // 연한 회색
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(240, 240, 240))) // 아주 밝은 회색
             {
                 g.FillRectangle(bgBrush, foupRect);
             }
 
-            // B. 벽면 그리기 (뒷면을 두껍게, 옆면은 일반)
-            using (Pen wallPen = new Pen(Color.DimGray, 2))
-            using (Pen backPen = new Pen(Color.FromArgb(80, 80, 80), 4)) // 뒷면은 진하고 두껍게
+            // [2] 웨이퍼 그리기
+            int maxWafers = 5;
+            for (int i = 0; i < maxWafers; i++)
             {
-                // 옆면 (Top & Bottom in local coords)
-                g.DrawLine(wallPen, -40, -40, 40, -40); // 위쪽 벽
-                g.DrawLine(wallPen, -40, 40, 40, 40);   // 아래쪽 벽
+                Color color = (i < waferCount) ? Color.Blue : Color.Black;
 
-                // 뒷면 (Back - 로봇 반대편, 즉 바깥쪽)
-                g.DrawLine(backPen, -40, -40, -40, 40);
+                using (SolidBrush waferBrush = new SolidBrush(color))
+                {
+                    float waferWidth = 10;  // 웨이퍼 두께 (X축 방향)
+                    float waferLength = 70; // 웨이퍼 길이 (Y축 방향, 꽉 차게)
+
+                    float xPos = -35 + (i * 14);
+                    float yPos = -35; // 위쪽(-Y)에서 시작
+
+                    g.FillRectangle(waferBrush, xPos, yPos, waferWidth, waferLength);
+                }
             }
 
-            // C. 뒷면에 '손잡이' 모양 추가 (여기가 뒷면임을 확실히 함)
-            using (SolidBrush handleBrush = new SolidBrush(Color.Gray))
+            // [3] 벽면 그리기 (ㄷ자 모양 - 뒤, 위, 아래 막힘)
+            // Pen 두께를 두껍게 해서 벽 느낌을 냄
+            using (Pen wallPen = new Pen(Color.DimGray, 4))
             {
-                // 뒷면 벽(-40)보다 더 뒤쪽(-48)에 손잡이 그림
-                g.FillRectangle(handleBrush, -48, -15, 6, 30);
+                // 1. 위쪽 벽 (Side 1)
+                g.DrawLine(wallPen, -40, -40, 40, -40);
+
+                // 2. 아래쪽 벽 (Side 2)
+                g.DrawLine(wallPen, -40, 40, 40, 40);
+
+                // 3. 뒷면 벽 (Back - 로봇 반대편)
+                // 모서리가 깔끔하게 만나도록 조정
+                g.DrawLine(wallPen, -40, -42, -40, 42);
             }
 
-            // D. 라벨 그리기 (FOUP 바깥쪽/뒤쪽에 위치)
+            // [4] 라벨 그리기 (FOUP 바깥쪽)
+            // 텍스트 위치: 박스 아래쪽이나 뒤쪽
             using (Font f = new Font("Arial", 10, FontStyle.Bold))
             {
                 var labelState = g.Save();
-                g.TranslateTransform(-60, 0); // 박스 뒤쪽으로 넉넉히 이동
 
-                // 텍스트가 뒤집히지 않도록 역회전 보정
-                g.RotateTransform(-180);
-                g.RotateTransform(-angle);
+                // 박스 '아래쪽(화면상)'에 글씨를 쓰기 위해 이동
+                // 로컬 좌표계에서 Y=40이 한쪽 벽면임. 
+                // 텍스트가 항상 화면 정방향으로 보이게 하려면 역회전 필요
+
+                g.TranslateTransform(-50, 0); // 박스 뒤쪽으로 이동
+                g.RotateTransform(90);
 
                 SizeF size = g.MeasureString(label, f);
                 g.DrawString(label, f, Brushes.Black, -size.Width / 2, -size.Height / 2);
+
                 g.Restore(labelState);
-            }
-
-            // E. 웨이퍼 슬롯 그리기 (안쪽에 배치)
-            for (int i = 0; i < 5; i++)
-            {
-                Brush brush = (i < waferCount) ? Brushes.Blue : Brushes.Black; // 빈 슬롯은 연하게
-                                                                                                 // 슬롯: 뒷면(-40) 근처에서 시작해 입구(+40) 쪽으로 뻗음
-                g.FillRectangle(brush, -35, -20 + (i * 12), 65, 8);
-            }
-
-            // F. 입구 쪽에 '가이드 핀' 살짝 그려서 열려있음을 표현
-            using (Pen guidePen = new Pen(Color.Gray, 2))
-            {
-                // 입구 끝단(x=40) 위아래에 짧은 선
-                g.DrawLine(guidePen, 40, -40, 40, -30);
-                g.DrawLine(guidePen, 40, 40, 40, 30);
             }
 
             g.Restore(state); // 좌표계 복구
