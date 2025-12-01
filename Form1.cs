@@ -45,30 +45,30 @@ namespace SemiGUI
         private const float MAX_EXTENSION = 60.0f;
         private const float EXTENSION_SPEED = 5.0f;
 
-        // [수정] 로봇 동작 상태 상수 추가 (WAIT)
+        // 로봇 동작 상태 상수
         private const int ROBOT_STATE_ROTATE = 0;
         private const int ROBOT_STATE_EXTEND = 1;
-        private const int ROBOT_STATE_WAIT = 2;   // [NEW] 대기 상태
-        private const int ROBOT_STATE_RETRACT = 3; // 번호 밀림
+        private const int ROBOT_STATE_WAIT = 2;
+        private const int ROBOT_STATE_RETRACT = 3;
         private int currentRobotState = ROBOT_STATE_ROTATE;
 
-        // [추가] 대기 시간 카운터 변수
+        // 대기 시간 카운터 변수
         private int robotWaitCounter = 0;
-        private const int ROBOT_WAIT_TICKS = 10; // 10 * 50ms = 0.5초 대기
+        private const int ROBOT_WAIT_TICKS = 10;
 
         private float robotSpeed = 10.0f;
 
         private const float ANG_PMC = 0;
-        // [수정] 화면 좌표에 맞춰 각도 보정 (기존 45/135 -> 54/126)
-        private const float ANG_FOUP_B = 54;
-        private const float ANG_FOUP_A = 126;
+        // 로봇 진입 각도 표준화 (135도 / 45도)
+        private const float ANG_FOUP_B = 45;
+        private const float ANG_FOUP_A = 135;
         private const float ANG_PMA = 180;
         private const float ANG_PMB = 270;
 
         private Button btnAutoRun;
         private int currentAlarmLevel = 0;
 
-        // [추가] 리셋 중임을 나타내는 플래그
+        // 리셋 중임을 나타내는 플래그
         private bool isResetting = false;
 
         public Form1()
@@ -98,11 +98,12 @@ namespace SemiGUI
             this.btnLoadA.Click += (s, e) => {
                 foupACount = 5;
                 UpdateWaferUI();
+                pnlCenter.Invalidate();
                 AddLog("Info", "FOUP A", "Carrier Loaded manually");
             };
-            this.btnUnloadA.Click += (s, e) => { foupACount = 0; UpdateWaferUI(); };
-            this.btnLoadB.Click += (s, e) => { foupBCount = 5; UpdateWaferUI(); };
-            this.btnUnloadB.Click += (s, e) => { foupBCount = 0; UpdateWaferUI(); };
+            this.btnUnloadA.Click += (s, e) => { foupACount = 0; UpdateWaferUI(); pnlCenter.Invalidate(); };
+            this.btnLoadB.Click += (s, e) => { foupBCount = 5; UpdateWaferUI(); pnlCenter.Invalidate(); };
+            this.btnUnloadB.Click += (s, e) => { foupBCount = 0; UpdateWaferUI(); pnlCenter.Invalidate(); };
 
             this.btnResetChambers.Click += BtnResetChambers_Click;
 
@@ -111,6 +112,12 @@ namespace SemiGUI
             this.pnlAlarm.Paint += pnlAlarm_Paint;
 
             SetLoginState(false);
+
+            pnlFoupA.Visible = false;
+            pnlFoupB.Visible = false;
+            pnlCassetteL.Visible = false;
+            pnlCassetteR.Visible = false;
+
             UpdateWaferUI();
             UpdateProcessUI();
         }
@@ -188,17 +195,14 @@ namespace SemiGUI
 
         private void BtnResetChambers_Click(object sender, EventArgs e)
         {
-            // Auto Run 중지
             if (isAutoRun) ToggleAutoRun();
 
             statusPmA = 0; progressA = 0;
             statusPmB = 0; progressB = 0;
             statusPmC = 0; progressC = 0;
 
-            ResetRobotState();
-
             UpdateProcessUI();
-
+            ResetRobotState();
             pnlCenter.Invalidate();
 
             AddLog("Info", "System", "System reset by user");
@@ -212,16 +216,14 @@ namespace SemiGUI
 
         private void ResetRobotState()
         {
-            isResetting = true; // 리셋 모드 활성화 (Tick 이벤트에서 감지용)
+            isResetting = true;
 
-            // 로봇 동작 변수 설정
             isRobotMoving = true;
             robotHasWafer = false;
-            targetAngle = 180; // 초기 위치
+            targetAngle = 180;
             robotDestination = "";
             robotSource = "";
 
-            // 애니메이션 상태 설정: 팔이 나와있다면 접고, 아니면 바로 회전
             if (robotExtension > 0)
             {
                 currentRobotState = ROBOT_STATE_RETRACT;
@@ -233,7 +235,6 @@ namespace SemiGUI
 
             robotWaitCounter = 0;
 
-            // [중요] 타이머가 꺼져있다면(Auto Run이 아니라면) 애니메이션을 위해 강제로 켭니다.
             if (!sysTimer.Enabled)
             {
                 sysTimer.Start();
@@ -319,13 +320,11 @@ namespace SemiGUI
                 return;
             }
 
-            // [수정] 리셋 중일 때는 이동(복귀)이 완료되면 타이머를 끄고 리셋 종료
             if (isResetting)
             {
                 if (!isRobotMoving)
                 {
                     isResetting = false;
-                    // Auto Run이 아니면 타이머 정지 (원래 상태로 복구)
                     if (!isAutoRun) sysTimer.Stop();
                 }
                 return;
@@ -402,30 +401,101 @@ namespace SemiGUI
             int cx = pnlCenter.Width / 2;
             int cy = pnlCenter.Height / 2;
 
+            // [중요] 그리기 전 좌표계 초기화
+            g.ResetTransform();
+
+            // 1. 배경 그리기
             g.FillEllipse(Brushes.LightGray, cx - 60, cy - 60, 120, 120);
             g.FillEllipse(new SolidBrush(Color.FromArgb(60, 60, 80)), cx - 25, cy - 25, 50, 50);
 
+            // 2. FOUP 그리기 (회전된 형태) - 고정됨
+            // [수정] 원래 위치 각도(135, 45)를 그대로 사용하여 제자리에 배치
+            // 내부는 DrawRotatedFoup에서 뒤집어서 그림
+            DrawRotatedFoup(g, cx, cy, ANG_FOUP_A, "FOUP A", foupACount);
+            DrawRotatedFoup(g, cx, cy, ANG_FOUP_B, "FOUP B", foupBCount);
+
+            // [중요] 로봇 그리기 전 좌표계 초기화 (FOUP 회전이 로봇에 영향 주지 않게)
+            g.ResetTransform();
+
+            // 3. 로봇 그리기 (회전하는 형태)
             g.TranslateTransform(cx, cy);
             g.RotateTransform(robotAngle);
 
+            // 로봇 몸통
             g.FillRectangle(Brushes.DimGray, -20, -20, 100, 40);
 
+            // 로봇 팔 (Extension)
             float armX = 0 + robotExtension;
             g.FillRectangle(Brushes.Gray, armX, -15, 100, 30);
 
+            // 로봇 웨이퍼
             if (robotHasWafer)
             {
                 g.FillEllipse(Brushes.CornflowerBlue, armX + 70, -20, 40, 40);
             }
 
+            // [중요] UI 그리기 전 좌표계 초기화 (로봇 회전이 신호등에 영향 주지 않게)
             g.ResetTransform();
 
+            // 4. 신호등 그리기 (우측 상단 고정)
             int lightX = pnlCenter.Width - 60;
             int lightY = 50;
             g.FillRectangle(isAutoRun ? Brushes.Maroon : Brushes.Red, lightX, lightY, 30, 30);
             g.FillRectangle(Brushes.Olive, lightX, lightY + 30, 30, 30);
             g.FillRectangle(isAutoRun ? Brushes.Lime : Brushes.Green, lightX, lightY + 60, 30, 30);
             g.DrawRectangle(Pens.Gray, lightX, lightY, 30, 90);
+        }
+
+        private void DrawRotatedFoup(Graphics g, int cx, int cy, float angle, string label, int waferCount)
+        {
+            var state = g.Save(); // 좌표계 상태 저장
+
+            g.TranslateTransform(cx, cy);
+            g.RotateTransform(angle); // 1. 위치 각도로 회전
+            g.TranslateTransform(160, 0); // 2. 위치로 이동 (중심에서 160 거리)
+
+            // [수정] 3. 여기서 제자리 회전 (180도) -> 입구가 안쪽(로봇)을 바라보게 됨
+            g.RotateTransform(180);
+
+            // FOUP 박스 그리기 (-40~40 범위)
+            // 회전했으므로 +X 방향이 이제 로봇 중심을 향하는 방향임
+            Rectangle foupRect = new Rectangle(-40, -40, 80, 80);
+            g.FillRectangle(Brushes.Silver, foupRect);
+
+            // [수정] 입구(로봇 쪽, +X 면)를 제외하고 테두리 그리기
+            // 위쪽(-Y), 뒤쪽(-X), 아래쪽(+Y) 선만 그림
+            using (Pen p = new Pen(Color.DimGray, 2))
+            {
+                g.DrawLine(p, -40, -40, 40, -40); // Top (relative)
+                g.DrawLine(p, -40, -40, -40, 40); // Back
+                g.DrawLine(p, -40, 40, 40, 40);   // Bottom
+                // Front (+X side) is open
+            }
+
+            // 라벨 그리기 (FOUP 바깥쪽)
+            // 현재 180도 돌린 상태이므로 글자도 뒤집힘 -> 역회전 필요
+            // 글자 위치: 박스 뒤쪽(-X) 너머
+            using (Font f = new Font("Arial", 10, FontStyle.Bold))
+            {
+                var labelState = g.Save();
+                g.TranslateTransform(-50, 0); // 박스 뒤쪽으로 이동
+                g.RotateTransform(-180);      // 글자 똑바로 (상대적 180도 회전 복구)
+                g.RotateTransform(-angle);    // 전체 각도 역회전 (화면 기준 수평 유지)
+
+                SizeF size = g.MeasureString(label, f);
+                g.DrawString(label, f, Brushes.Black, -size.Width / 2, -size.Height / 2);
+                g.Restore(labelState);
+            }
+
+            // 웨이퍼 슬롯 그리기
+            for (int i = 0; i < 5; i++)
+            {
+                Brush brush = (i < waferCount) ? Brushes.Blue : Brushes.Black;
+                // 슬롯 위치: 뒤쪽(-X)에서 시작해서 앞쪽으로 뻗음
+                g.FillRectangle(brush, -30, -20 + (i * 12), 60, 8);
+            }
+
+            g.Restore(state); // 좌표계 상태 복구 (회전 취소)
         }
 
         private void pnlAlarm_Paint(object sender, PaintEventArgs e)
@@ -497,10 +567,9 @@ namespace SemiGUI
                     {
                         robotAngle = targetAngle;
 
-                        // [수정] 리셋 중이고 목표(180도)에 도달했다면 여기서 종료
                         if (isResetting && robotAngle == 180)
                         {
-                            isRobotMoving = false; // 움직임 종료 (SysTimer_Tick에서 타이머 정지 처리됨)
+                            isRobotMoving = false;
                             return;
                         }
 
@@ -525,7 +594,6 @@ namespace SemiGUI
                     }
                     else
                     {
-                        // 리셋 중이 아닐 때만 데이터 처리 (리셋 중엔 집거나 놓지 않음)
                         if (!isResetting) PerformRobotAction();
                         currentRobotState = ROBOT_STATE_RETRACT;
                     }
@@ -538,7 +606,6 @@ namespace SemiGUI
                         robotExtension = 0;
                         currentRobotState = ROBOT_STATE_ROTATE;
 
-                        // [수정] 리셋 중일 때는 팔을 다 접었으니 이제 180도로 회전 시작
                         if (isResetting)
                         {
                             targetAngle = 180;
@@ -570,6 +637,7 @@ namespace SemiGUI
                 else if (robotSource == "PMC") statusPmC = 0;
 
                 UpdateWaferUI();
+                pnlCenter.Invalidate(); // FOUP 그리기 갱신
             }
             else // Place
             {
@@ -577,7 +645,7 @@ namespace SemiGUI
                 if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
                 else if (robotDestination == "PMB") { statusPmB = 1; progressB = 0; }
                 else if (robotDestination == "PMC") { statusPmC = 1; progressC = 0; }
-                else if (robotDestination == "FOUP_B") { foupBCount++; UpdateWaferUI(); }
+                else if (robotDestination == "FOUP_B") { foupBCount++; UpdateWaferUI(); pnlCenter.Invalidate(); }
             }
         }
 
@@ -655,17 +723,9 @@ namespace SemiGUI
             txtCarrierA.Text = $"FOUP_LOT01 ({foupACount})";
             txtCarrierB.Text = $"FOUP_LOT02 ({foupBCount})";
 
-            pnlWaferL1.BackColor = foupACount >= 5 ? Color.Blue : Color.Black;
-            pnlWaferL2.BackColor = foupACount >= 4 ? Color.Blue : Color.Black;
-            pnlWaferL3.BackColor = foupACount >= 3 ? Color.Blue : Color.Black;
-            pnlWaferL4.BackColor = foupACount >= 2 ? Color.Blue : Color.Black;
-            pnlWaferL5.BackColor = foupACount >= 1 ? Color.Blue : Color.Black;
-
-            pnlWaferR1.BackColor = foupBCount >= 5 ? Color.Blue : Color.Black;
-            pnlWaferR2.BackColor = foupBCount >= 4 ? Color.Blue : Color.Black;
-            pnlWaferR3.BackColor = foupBCount >= 3 ? Color.Blue : Color.Black;
-            pnlWaferR4.BackColor = foupBCount >= 2 ? Color.Blue : Color.Black;
-            pnlWaferR5.BackColor = foupBCount >= 1 ? Color.Blue : Color.Black;
+            // 기존 패널 색상 변경 코드는 이제 무의미하지만(패널 숨김), 
+            // 나중에 참조용으로 남겨두거나 삭제해도 무방함.
+            // pnlWaferL1.BackColor ... (화면에 안보임)
         }
 
         private void ApplyRecipeData(RecipeControl.RecipeModel data)
@@ -694,15 +754,21 @@ namespace SemiGUI
             int cx = pnlCenter.Width / 2;
             int cy = pnlCenter.Height / 2;
 
+            // [수정] 챔버 위치 조정 (바깥으로 조금 더 이동)
             pnlChamberB.Location = new Point(cx - 40, cy - 220);
             pnlChamberA.Location = new Point(cx - 210, cy - 50);
             pnlChamberC.Location = new Point(cx + 120, cy - 50);
 
-            pnlFoupA.Location = new Point(cx - 155, cy + 115);
-            pnlFoupB.Location = new Point(cx + 75, cy + 115);
+            // [수정] FOUP 위치 조정 (45도/135도 각도에 맞춰 X, Y 오프셋을 1:1로 설정)
+            // 중심에서 약 155px 거리 (X:110, Y:110 오프셋)
+            // FOUP A (135도) -> 왼쪽(-110), 아래(+110)
+            pnlFoupA.Location = new Point(cx - 150, cy + 70);
+            // FOUP B (45도) -> 오른쪽(+110), 아래(+110)
+            pnlFoupB.Location = new Point(cx + 70, cy + 70);
 
-            pnlCassetteL.Location = new Point(cx - 95, cy + 230);
-            pnlCassetteR.Location = new Point(cx + 35, cy + 230);
+            // [수정] 카세트(웨이퍼 슬롯) 위치 조정 (FOUP 바로 아래 정렬)
+            pnlCassetteL.Location = new Point(cx - 100, cy + 160);
+            pnlCassetteR.Location = new Point(cx + 20, cy + 160);
 
             if (lblNameA != null) lblNameA.Location = new Point(pnlChamberA.Left + (pnlChamberA.Width - lblNameA.Width) / 2, pnlChamberA.Top - 25);
             if (lblNameB != null) lblNameB.Location = new Point(pnlChamberB.Left + (pnlChamberB.Width - lblNameB.Width) / 2, pnlChamberB.Top - 25);
