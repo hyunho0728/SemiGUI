@@ -215,7 +215,7 @@
             this.lblTimeA.Text = "Step Time"; this.lblTimeA.Location = new System.Drawing.Point(145, 85); this.lblTimeA.AutoSize = true; this.lblTimeA.Font = new System.Drawing.Font("Arial", 8F);
             this.valTimeA.Text = "00 / 00"; this.valTimeA.Location = new System.Drawing.Point(210, 82); this.valTimeA.Size = new System.Drawing.Size(60, 20); this.valTimeA.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle; this.valTimeA.TextAlign = System.Drawing.ContentAlignment.MiddleCenter; this.valTimeA.BackColor = System.Drawing.Color.White;
             this.lblProgA.Text = "Progress"; this.lblProgA.Location = new System.Drawing.Point(10, 115); this.lblProgA.AutoSize = true;
-            this.progA.Value = 45; this.progA.Location = new System.Drawing.Point(90, 115); this.progA.Size = new System.Drawing.Size(180, 15);
+            this.progA.Value = 0; this.progA.Location = new System.Drawing.Point(90, 115); this.progA.Size = new System.Drawing.Size(180, 15);
             this.btnStopA.Text = "STOP"; this.btnStopA.Location = new System.Drawing.Point(10, 140); this.btnStopA.Size = new System.Drawing.Size(80, 30); this.btnStopA.BackColor = System.Drawing.Color.White;
             this.btnStartA.Text = "START"; this.btnStartA.Location = new System.Drawing.Point(100, 140); this.btnStartA.Size = new System.Drawing.Size(80, 30); this.btnStartA.BackColor = System.Drawing.Color.White;
             this.grpPmA.Controls.Add(this.lblStepA); this.grpPmA.Controls.Add(this.txtProcessA);
@@ -238,7 +238,7 @@
             this.lblTimeB.Text = "Step Time"; this.lblTimeB.Location = new System.Drawing.Point(145, 85); this.lblTimeB.AutoSize = true; this.lblTimeB.Font = new System.Drawing.Font("Arial", 8F);
             this.valTimeB.Text = "00 / 00"; this.valTimeB.Location = new System.Drawing.Point(210, 82); this.valTimeB.Size = new System.Drawing.Size(60, 20); this.valTimeB.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle; this.valTimeB.TextAlign = System.Drawing.ContentAlignment.MiddleCenter; this.valTimeB.BackColor = System.Drawing.Color.White;
             this.lblProgB.Text = "Progress"; this.lblProgB.Location = new System.Drawing.Point(10, 115); this.lblProgB.AutoSize = true;
-            this.progB.Value = 10; this.progB.Location = new System.Drawing.Point(90, 115); this.progB.Size = new System.Drawing.Size(180, 15);
+            this.progB.Value = 0; this.progB.Location = new System.Drawing.Point(90, 115); this.progB.Size = new System.Drawing.Size(180, 15);
             this.btnStopB.Text = "STOP"; this.btnStopB.Location = new System.Drawing.Point(10, 140); this.btnStopB.Size = new System.Drawing.Size(80, 30); this.btnStopB.BackColor = System.Drawing.Color.White;
             this.btnStartB.Text = "START"; this.btnStartB.Location = new System.Drawing.Point(100, 140); this.btnStartB.Size = new System.Drawing.Size(80, 30); this.btnStartB.BackColor = System.Drawing.Color.White;
             this.grpPmB.Controls.Add(this.lblStepB); this.grpPmB.Controls.Add(this.txtProcessB);

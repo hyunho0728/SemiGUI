@@ -36,7 +36,7 @@ namespace SemiGUI
         private int timePmC = 5;
 
         // 로봇 애니메이션 변수
-        private float robotAngle = 0;
+        private float robotAngle = 180;
         private float targetAngle = 0;
         private bool isRobotMoving = false;
         private bool robotHasWafer = false;
