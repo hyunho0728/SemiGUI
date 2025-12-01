@@ -9,6 +9,9 @@ namespace SemiGUI
 {
     public partial class Form1 : Form
     {
+        // [추가] DB 연결 문자열 (클래스 멤버로 격상)
+        private string connectionString = "Server=localhost;Port=3306;Database=SemiGuiData;Uid=root;Pwd=1234;Charset=utf8;";
+
         // ... (기존 변수 유지) ...
         // --- 시스템 상태 변수 ---
         private bool isLoggedIn = false;
@@ -36,7 +39,7 @@ namespace SemiGUI
         private int timePmC = 5;
 
         // 로봇 애니메이션 변수
-        private float robotAngle = 180;
+        private float robotAngle = 0;
         private float targetAngle = 0;
         private bool isRobotMoving = false;
         private bool robotHasWafer = false;
@@ -76,7 +79,11 @@ namespace SemiGUI
                 MessageBox.Show("EtherCAT 연결 기능은 추후 구현 예정입니다.", "System Info", MessageBoxButtons.OK, MessageBoxIcon.Information);
             };
 
-            this.btnLoadA.Click += (s, e) => { foupACount = 5; UpdateWaferUI(); };
+            this.btnLoadA.Click += (s, e) => {
+                foupACount = 5;
+                UpdateWaferUI();
+                AddLog("Info", "FOUP A", "Carrier Loaded manually"); // 로그 추가
+            };
             this.btnUnloadA.Click += (s, e) => { foupACount = 0; UpdateWaferUI(); };
             this.btnLoadB.Click += (s, e) => { foupBCount = 5; UpdateWaferUI(); };
             this.btnUnloadB.Click += (s, e) => { foupBCount = 0; UpdateWaferUI(); };
@@ -92,6 +99,35 @@ namespace SemiGUI
 
             SetLoginState(false);
             UpdateWaferUI();
+
+            // [수정] 프로그램 시작 시 UI 상태 동기화 (디자이너 잔상 방지)
+            UpdateProcessUI();
+        }
+
+        // [신규] 로그 저장 함수
+        private void AddLog(string type, string equipment, string message)
+        {
+            try
+            {
+                using (MySqlConnection conn = new MySqlConnection(connectionString))
+                {
+                    conn.Open();
+                    string sql = "INSERT INTO logs (timestamp, type, equipment, message) VALUES (@ts, @type, @eqp, @msg)";
+                    using (MySqlCommand cmd = new MySqlCommand(sql, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@ts", DateTime.Now);
+                        cmd.Parameters.AddWithValue("@type", type);
+                        cmd.Parameters.AddWithValue("@eqp", equipment);
+                        cmd.Parameters.AddWithValue("@msg", message);
+                        cmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // 로그 저장 실패 시 메인 로직에 방해되지 않도록 예외 무시 (혹은 디버그 출력)
+                // Console.WriteLine(ex.Message);
+            }
         }
 
         // [추가] 챔버 리셋 버튼 핸들러
@@ -104,16 +140,17 @@ namespace SemiGUI
             UpdateProcessUI();
             pnlCenter.Invalidate(); // 화면 갱신 (챔버 색상 원래대로)
 
+            AddLog("Info", "System", "Chambers reset by user"); // 로그 추가
             MessageBox.Show("모든 챔버 상태가 초기화되었습니다.", "Reset Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
 
-        // ... (InitializeDatabase, CreateAutoRunButton, SetupLogic 유지) ...
         private void InitializeDatabase()
         {
-            string rootConnStr = "Server=localhost;Port=3306;Uid=root;Pwd=1234;Charset=utf8;";
+            // 초기 DB 생성용 연결 문자열 (Database 지정 없음)
+            string initConnStr = "Server=localhost;Port=3306;Uid=root;Pwd=1234;Charset=utf8;";
             try
             {
-                using (MySqlConnection conn = new MySqlConnection(rootConnStr))
+                using (MySqlConnection conn = new MySqlConnection(initConnStr))
                 {
                     conn.Open();
                     using (MySqlCommand cmd = new MySqlCommand("CREATE DATABASE IF NOT EXISTS SemiGuiData", conn)) cmd.ExecuteNonQuery();
@@ -147,7 +184,13 @@ namespace SemiGUI
 
         private void SetupLogic()
         {
-            this.DoubleBuffered = true;
+            this.DoubleBuffered = true; // 폼 자체의 깜빡임 방지
+
+            // [수정] pnlCenter 패널의 깜빡임 방지를 위해 DoubleBuffered 속성을 강제로 true로 설정
+            typeof(Panel).InvokeMember("DoubleBuffered",
+                System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
+                null, pnlCenter, new object[] { true });
+
             clockTimer = new Timer();
             clockTimer.Interval = 1000;
             clockTimer.Tick += (s, e) => {
@@ -205,7 +248,7 @@ namespace SemiGUI
             pnlCenter.Invalidate();
         }
 
-        // [추가] 알람 체크 메서드
+        // [수정] 알람 체크 메서드 (로그 기록 추가)
         private void CheckAlarms()
         {
             int prevLevel = currentAlarmLevel;
@@ -227,14 +270,32 @@ namespace SemiGUI
             else
             {
                 currentAlarmLevel = 0; // Normal
-                msg = "";
+                msg = "System Normal";
             }
 
-            // 상태 변경 시 UI 갱신
-            if (prevLevel != currentAlarmLevel || lblAlarmMsg.Text != msg)
+            // 상태 변경 시 UI 갱신 및 로그 저장
+            if (prevLevel != currentAlarmLevel)
             {
-                lblAlarmMsg.Text = msg;
+                // UI 갱신
+                if (currentAlarmLevel > 0) lblAlarmMsg.Text = msg;
+                else lblAlarmMsg.Text = "";
+
                 pnlAlarm.Invalidate(); // 알람 패널 다시 그리기
+
+                // 로그 저장 (상태가 변할 때만)
+                string logType = "Info";
+                if (currentAlarmLevel == 1) logType = "Warning";
+                else if (currentAlarmLevel == 2) logType = "Alarm";
+
+                // Normal로 돌아올 때도 로그를 남기고 싶다면 아래 주석 해제
+                if (currentAlarmLevel > 0) // 경고/위험 발생 시에만 기록
+                {
+                    AddLog(logType, "System", msg);
+                }
+                else if (prevLevel > 0 && currentAlarmLevel == 0)
+                {
+                    AddLog("Info", "System", "Alarm Cleared (Normal)");
+                }
             }
         }
 
@@ -320,6 +381,10 @@ namespace SemiGUI
                     robotHasWafer = false;
                     isRobotMoving = false;
 
+                    // [수정] 챔버에 웨이퍼를 넣을 때 해당 챔버의 진행률도 초기화 (잔여 게이지 문제 해결)
+                    // [추가] 이동 완료 로그 기록
+                    AddLog("Transfer", "Robot", $"Wafer moved: {robotSource} > {robotDestination}");
+
                     if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
                     else if (robotDestination == "PMB") { statusPmB = 1; progressB = 0; }
                     else if (robotDestination == "PMC") { statusPmC = 1; progressC = 0; }
@@ -333,17 +398,17 @@ namespace SemiGUI
             if (statusPmA == 1)
             {
                 progressA += (100.0 / (timePmA * 20));
-                if (progressA >= 100) { progressA = 100; statusPmA = 2; }
+                if (progressA >= 100) { progressA = 100; statusPmA = 2; AddLog("Process", "PM A", "Process Complete"); }
             }
             if (statusPmB == 1)
             {
                 progressB += (100.0 / (timePmB * 20));
-                if (progressB >= 100) { progressB = 100; statusPmB = 2; }
+                if (progressB >= 100) { progressB = 100; statusPmB = 2; AddLog("Process", "PM B", "Process Complete"); }
             }
             if (statusPmC == 1)
             {
                 progressC += (100.0 / (timePmC * 20));
-                if (progressC >= 100) { progressC = 100; statusPmC = 2; }
+                if (progressC >= 100) { progressC = 100; statusPmC = 2; AddLog("Process", "PM C", "Process Complete"); }
             }
         }
 
@@ -368,12 +433,14 @@ namespace SemiGUI
                 btnAutoRun.Text = "STOP";
                 btnAutoRun.BackColor = Color.LightCoral;
                 sysTimer.Start();
+                AddLog("Event", "System", "Auto Run Started");
             }
             else
             {
                 btnAutoRun.Text = "AUTO RUN";
                 btnAutoRun.BackColor = Color.LightGray;
                 sysTimer.Stop();
+                AddLog("Event", "System", "Auto Run Stopped");
             }
         }
 
@@ -431,6 +498,7 @@ namespace SemiGUI
                 valPressC.Text = data.PmC_Params[0]; valGasC.Text = data.PmC_Params[1]; valSpinTimeC.Text = data.PmC_Params[2];
                 int.TryParse(data.PmC_Params[2], out timePmC);
             }
+            AddLog("Event", "Recipe", $"Recipe Applied: {data.Name}");
         }
 
         private void UpdateLayout()
@@ -463,6 +531,7 @@ namespace SemiGUI
             txtPw.Enabled = !login;
             btnLogin.Text = login ? "LOGOUT" : "LOGIN";
             if (!login) { txtId.Text = ""; txtPw.Text = ""; txtId.Focus(); }
+            else { AddLog("Event", "System", "User Logged In"); }
             if (login) UpdateLayout();
         }
 
@@ -471,7 +540,10 @@ namespace SemiGUI
             if (isLoggedIn)
             {
                 if (MessageBox.Show("로그아웃 하시겠습니까?", "Logout", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                {
+                    AddLog("Event", "System", "User Logged Out");
                     SetLoginState(false);
+                }
                 return;
             }
             if (txtId.Text.Trim() == "admin" && txtPw.Text.Trim() == "1234")
@@ -482,6 +554,7 @@ namespace SemiGUI
             else
             {
                 MessageBox.Show("ID/PW 불일치", "Login Failed", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                AddLog("Warning", "Security", "Login Failed: Invalid Credentials");
             }
         }
 
