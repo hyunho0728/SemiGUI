@@ -9,23 +9,19 @@ namespace SemiGUI
 {
     public partial class Form1 : Form
     {
-        // [추가] DB 연결 문자열 (클래스 멤버로 격상)
+        // [추가] DB 연결 문자열
         private string connectionString = "Server=localhost;Port=3306;Database=SemiGuiData;Uid=root;Pwd=1234;Charset=utf8;";
 
         // ... (기존 변수 유지) ...
-        // --- 시스템 상태 변수 ---
         private bool isLoggedIn = false;
         private bool isAutoRun = false;
 
-        // --- 시뮬레이션용 타이머 ---
         private Timer clockTimer;
         private Timer sysTimer;
 
-        // --- 데이터 모델 ---
         private int foupACount = 5;
         private int foupBCount = 0;
 
-        // 모듈 상태 (0: Idle/Empty, 1: Processing, 2: Complete/Wait_Out)
         private int statusPmA = 0;
         private int statusPmB = 0;
         private int statusPmC = 0;
@@ -38,7 +34,6 @@ namespace SemiGUI
         private int timePmB = 5;
         private int timePmC = 5;
 
-        // 로봇 애니메이션 변수
         private float robotAngle = 180;
         private float targetAngle = 0;
         private bool isRobotMoving = false;
@@ -46,18 +41,31 @@ namespace SemiGUI
         private string robotDestination = "";
         private string robotSource = "";
 
-        // [추가] 설정값 변수
+        private float robotExtension = 0;
+        private const float MAX_EXTENSION = 60.0f;
+        private const float EXTENSION_SPEED = 5.0f;
+
+        // [수정] 로봇 동작 상태 상수 추가 (WAIT)
+        private const int ROBOT_STATE_ROTATE = 0;
+        private const int ROBOT_STATE_EXTEND = 1;
+        private const int ROBOT_STATE_WAIT = 2;   // [NEW] 대기 상태
+        private const int ROBOT_STATE_RETRACT = 3; // 번호 밀림
+        private int currentRobotState = ROBOT_STATE_ROTATE;
+
+        // [추가] 대기 시간 카운터 변수
+        private int robotWaitCounter = 0;
+        private const int ROBOT_WAIT_TICKS = 10; // 10 * 50ms = 0.5초 대기
+
         private float robotSpeed = 10.0f;
 
         private const float ANG_PMC = 0;
-        private const float ANG_FOUP_B = 45;
-        private const float ANG_FOUP_A = 135;
+        // [수정] 화면 좌표에 맞춰 각도 보정 (기존 45/135 -> 54/126)
+        private const float ANG_FOUP_B = 54;
+        private const float ANG_FOUP_A = 126;
         private const float ANG_PMA = 180;
         private const float ANG_PMB = 270;
 
         private Button btnAutoRun;
-
-        // [추가] 알람 상태 관리 (0: None, 1: Warning, 2: Danger)
         private int currentAlarmLevel = 0;
 
         public Form1()
@@ -71,13 +79,13 @@ namespace SemiGUI
             this.StartPosition = FormStartPosition.CenterScreen;
 
             SetupLogic();
-            LoadSystemConfig(); // [추가] 초기 설정 로드
+            LoadSystemConfig();
             CreateAutoRunButton();
 
             this.btnMain.Click += BtnMain_Click;
             this.btnRecipe.Click += BtnRecipe_Click;
             this.btnLog.Click += BtnLog_Click;
-            this.btnConfig.Click += BtnConfig_Click; // [추가] 이벤트 연결
+            this.btnConfig.Click += BtnConfig_Click;
             this.btnLogin.Click += BtnLogin_Click;
 
             this.btnConnect.Click += (s, e) => {
@@ -93,23 +101,17 @@ namespace SemiGUI
             this.btnLoadB.Click += (s, e) => { foupBCount = 5; UpdateWaferUI(); };
             this.btnUnloadB.Click += (s, e) => { foupBCount = 0; UpdateWaferUI(); };
 
-            // [추가] 챔버 리셋 버튼 이벤트
             this.btnResetChambers.Click += BtnResetChambers_Click;
 
             this.pnlCenter.SizeChanged += (s, e) => UpdateLayout();
             this.pnlCenter.Paint += pnlCenter_Paint;
-
-            // [추가] 알람 패널 Paint 이벤트 연결
             this.pnlAlarm.Paint += pnlAlarm_Paint;
 
             SetLoginState(false);
             UpdateWaferUI();
-
-            // [수정] 프로그램 시작 시 UI 상태 동기화 (디자이너 잔상 방지)
             UpdateProcessUI();
         }
 
-        // [신규] 설정 로드 함수
         private void LoadSystemConfig()
         {
             try
@@ -117,7 +119,6 @@ namespace SemiGUI
                 using (MySqlConnection conn = new MySqlConnection(connectionString))
                 {
                     conn.Open();
-                    // 설정 테이블이 비어있으면 기본값 삽입
                     string initSql = "INSERT IGNORE INTO sys_config (cfg_key, cfg_value) VALUES ('RobotSpeed', '10'), ('TimerInterval', '50')";
                     using (MySqlCommand cmd = new MySqlCommand(initSql, conn)) cmd.ExecuteNonQuery();
 
@@ -143,7 +144,7 @@ namespace SemiGUI
                     }
                 }
             }
-            catch { /* 초기화 전이거나 DB 에러 시 기본값 사용 */ }
+            catch { }
         }
 
         private void BtnConfig_Click(object sender, EventArgs e)
@@ -151,7 +152,6 @@ namespace SemiGUI
             Form cPop = new Form() { Text = "Configuration", Size = new Size(820, 640), StartPosition = FormStartPosition.CenterScreen };
             ConfigControl cc = new ConfigControl() { Dock = DockStyle.Fill };
 
-            // 설정 저장 시 메인 폼에도 즉시 적용
             cc.ConfigSaved += (s2, e2) => {
                 LoadSystemConfig();
                 AddLog("Event", "System", "Configuration Updated");
@@ -162,7 +162,6 @@ namespace SemiGUI
             cPop.ShowDialog();
         }
 
-        // [신규] 로그 저장 함수
         private void AddLog(string type, string equipment, string message)
         {
             try
@@ -181,13 +180,9 @@ namespace SemiGUI
                     }
                 }
             }
-            catch (Exception)
-            {
-                // 로그 저장 실패 시 메인 로직에 방해되지 않도록 예외 무시
-            }
+            catch (Exception) { }
         }
 
-        // [추가] 챔버 리셋 버튼 핸들러
         private void BtnResetChambers_Click(object sender, EventArgs e)
         {
             statusPmA = 0; progressA = 0;
@@ -203,7 +198,6 @@ namespace SemiGUI
 
         private void InitializeDatabase()
         {
-            // 초기 DB 생성용 연결 문자열 (Database 지정 없음)
             string initConnStr = "Server=localhost;Port=3306;Uid=root;Pwd=1234;Charset=utf8;";
             try
             {
@@ -214,8 +208,6 @@ namespace SemiGUI
                     conn.ChangeDatabase("SemiGuiData");
                     using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS logs (id INT AUTO_INCREMENT PRIMARY KEY, timestamp DATETIME NOT NULL, type VARCHAR(50), equipment VARCHAR(100), message TEXT)", conn)) cmd.ExecuteNonQuery();
                     using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS recipes (name VARCHAR(100) PRIMARY KEY, pmA_target VARCHAR(50), pmA_gas VARCHAR(50), pmA_time VARCHAR(50), pmB_align VARCHAR(50), pmB_rpm VARCHAR(50), pmB_time VARCHAR(50), pmC_press VARCHAR(50), pmC_gas VARCHAR(50), pmC_time VARCHAR(50))", conn)) cmd.ExecuteNonQuery();
-
-                    // [추가] 설정 테이블 생성
                     using (MySqlCommand cmd = new MySqlCommand("CREATE TABLE IF NOT EXISTS sys_config (cfg_key VARCHAR(50) PRIMARY KEY, cfg_value VARCHAR(100))", conn)) cmd.ExecuteNonQuery();
 
                     using (MySqlCommand cmd = new MySqlCommand("SELECT COUNT(*) FROM recipes", conn))
@@ -247,7 +239,6 @@ namespace SemiGUI
         {
             this.DoubleBuffered = true;
 
-            // [수정] pnlCenter 패널의 깜빡임 방지
             typeof(Panel).InvokeMember("DoubleBuffered",
                 System.Reflection.BindingFlags.SetProperty | System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
                 null, pnlCenter, new object[] { true });
@@ -260,7 +251,7 @@ namespace SemiGUI
             };
             clockTimer.Start();
             sysTimer = new Timer();
-            sysTimer.Interval = 50; // 기본값 (나중에 DB에서 로드됨)
+            sysTimer.Interval = 50;
             sysTimer.Tick += SysTimer_Tick;
         }
 
@@ -277,7 +268,6 @@ namespace SemiGUI
 
             SimulateProcess();
 
-            // 스케줄링
             if (statusPmC == 2 && !robotHasWafer)
             {
                 if (foupBCount < 5) StartRobotMove("PMC", "FOUP_B");
@@ -337,6 +327,42 @@ namespace SemiGUI
             }
         }
 
+        private void pnlCenter_Paint(object sender, PaintEventArgs e)
+        {
+            if (!isLoggedIn) return;
+
+            Graphics g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            int cx = pnlCenter.Width / 2;
+            int cy = pnlCenter.Height / 2;
+
+            g.FillEllipse(Brushes.LightGray, cx - 60, cy - 60, 120, 120);
+            g.FillEllipse(new SolidBrush(Color.FromArgb(60, 60, 80)), cx - 25, cy - 25, 50, 50);
+
+            g.TranslateTransform(cx, cy);
+            g.RotateTransform(robotAngle);
+
+            g.FillRectangle(Brushes.DimGray, -20, -20, 100, 40);
+
+            float armX = 0 + robotExtension;
+            g.FillRectangle(Brushes.Gray, armX, -15, 100, 30);
+
+            if (robotHasWafer)
+            {
+                g.FillEllipse(Brushes.CornflowerBlue, armX + 70, -20, 40, 40);
+            }
+
+            g.ResetTransform();
+
+            int lightX = pnlCenter.Width - 60;
+            int lightY = 50;
+            g.FillRectangle(isAutoRun ? Brushes.Maroon : Brushes.Red, lightX, lightY, 30, 30);
+            g.FillRectangle(Brushes.Olive, lightX, lightY + 30, 30, 30);
+            g.FillRectangle(isAutoRun ? Brushes.Lime : Brushes.Green, lightX, lightY + 60, 30, 30);
+            g.DrawRectangle(Pens.Gray, lightX, lightY, 30, 90);
+        }
+
         private void pnlAlarm_Paint(object sender, PaintEventArgs e)
         {
             if (currentAlarmLevel == 0) return;
@@ -377,52 +403,104 @@ namespace SemiGUI
             isRobotMoving = true;
             robotHasWafer = false;
             targetAngle = GetAngle(src);
+
+            currentRobotState = ROBOT_STATE_ROTATE;
+            robotExtension = 0;
         }
 
         private void AnimateRobot()
         {
-            // [수정] 변수 대신 설정된 robotSpeed 사용
             float speed = this.robotSpeed;
-            float diff = targetAngle - robotAngle;
 
-            while (diff <= -180) diff += 360;
-            while (diff > 180) diff -= 360;
-
-            if (Math.Abs(diff) > speed)
+            switch (currentRobotState)
             {
-                if (diff > 0) robotAngle += speed;
-                else robotAngle -= speed;
+                case ROBOT_STATE_ROTATE:
+                    float diff = targetAngle - robotAngle;
 
-                if (robotAngle >= 360) robotAngle -= 360;
-                if (robotAngle < 0) robotAngle += 360;
+                    while (diff <= -180) diff += 360;
+                    while (diff > 180) diff -= 360;
+
+                    if (Math.Abs(diff) > speed)
+                    {
+                        if (diff > 0) robotAngle += speed;
+                        else robotAngle -= speed;
+
+                        if (robotAngle >= 360) robotAngle -= 360;
+                        if (robotAngle < 0) robotAngle += 360;
+                    }
+                    else
+                    {
+                        robotAngle = targetAngle;
+                        currentRobotState = ROBOT_STATE_EXTEND;
+                    }
+                    break;
+
+                case ROBOT_STATE_EXTEND:
+                    robotExtension += EXTENSION_SPEED;
+                    if (robotExtension >= MAX_EXTENSION)
+                    {
+                        robotExtension = MAX_EXTENSION;
+                        // [수정] Extend 완료 후 바로 접지 않고 WAIT 상태로 전환
+                        currentRobotState = ROBOT_STATE_WAIT;
+                        robotWaitCounter = ROBOT_WAIT_TICKS; // 대기 시간 설정
+                    }
+                    break;
+
+                case ROBOT_STATE_WAIT:
+                    // [추가] 대기 로직 수행
+                    if (robotWaitCounter > 0)
+                    {
+                        robotWaitCounter--;
+                    }
+                    else
+                    {
+                        // 대기 끝, 데이터 처리(Pick/Place) 수행
+                        PerformRobotAction();
+                        currentRobotState = ROBOT_STATE_RETRACT; // 다음 상태: 팔 접기
+                    }
+                    break;
+
+                case ROBOT_STATE_RETRACT:
+                    robotExtension -= EXTENSION_SPEED;
+                    if (robotExtension <= 0)
+                    {
+                        robotExtension = 0;
+                        currentRobotState = ROBOT_STATE_ROTATE;
+
+                        if (robotHasWafer)
+                        {
+                            targetAngle = GetAngle(robotDestination);
+                        }
+                        else
+                        {
+                            isRobotMoving = false;
+                            AddLog("Transfer", "Robot", $"Wafer moved: {robotSource} > {robotDestination}");
+                        }
+                    }
+                    break;
             }
-            else
+        }
+
+        // [추가] 로봇이 완전히 뻗은 후(WAIT 끝난 후) 실행할 데이터 처리 로직 분리
+        private void PerformRobotAction()
+        {
+            if (!robotHasWafer) // 빈손이면 집는다 (Pick)
             {
-                robotAngle = targetAngle;
+                robotHasWafer = true;
+                if (robotSource == "FOUP_A") foupACount--;
+                else if (robotSource == "PMA") statusPmA = 0;
+                else if (robotSource == "PMB") statusPmB = 0;
+                else if (robotSource == "PMC") statusPmC = 0;
 
-                if (!robotHasWafer)
-                {
-                    robotHasWafer = true;
-                    if (robotSource == "FOUP_A") foupACount--;
-                    else if (robotSource == "PMA") statusPmA = 0;
-                    else if (robotSource == "PMB") statusPmB = 0;
-                    else if (robotSource == "PMC") statusPmC = 0;
-
-                    UpdateWaferUI();
-                    targetAngle = GetAngle(robotDestination);
-                }
-                else
-                {
-                    robotHasWafer = false;
-                    isRobotMoving = false;
-
-                    AddLog("Transfer", "Robot", $"Wafer moved: {robotSource} > {robotDestination}");
-
-                    if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
-                    else if (robotDestination == "PMB") { statusPmB = 1; progressB = 0; }
-                    else if (robotDestination == "PMC") { statusPmC = 1; progressC = 0; }
-                    else if (robotDestination == "FOUP_B") { foupBCount++; UpdateWaferUI(); }
-                }
+                UpdateWaferUI();
+            }
+            else // 웨이퍼 있으면 놓는다 (Place)
+            {
+                robotHasWafer = false;
+                if (robotDestination == "PMA") { statusPmA = 1; progressA = 0; }
+                else if (robotDestination == "PMB") { statusPmB = 1; progressB = 0; }
+                else if (robotDestination == "PMC") { statusPmC = 1; progressC = 0; }
+                else if (robotDestination == "FOUP_B") { foupBCount++; UpdateWaferUI(); }
             }
         }
 
@@ -590,39 +668,6 @@ namespace SemiGUI
             }
         }
 
-        private void pnlCenter_Paint(object sender, PaintEventArgs e)
-        {
-            if (!isLoggedIn) return;
-
-            Graphics g = e.Graphics;
-            g.SmoothingMode = SmoothingMode.AntiAlias;
-
-            int cx = pnlCenter.Width / 2;
-            int cy = pnlCenter.Height / 2;
-
-            g.FillEllipse(Brushes.LightGray, cx - 60, cy - 60, 120, 120);
-            g.FillEllipse(new SolidBrush(Color.FromArgb(60, 60, 80)), cx - 25, cy - 25, 50, 50);
-
-            g.TranslateTransform(cx, cy);
-            g.RotateTransform(robotAngle);
-
-            g.FillRectangle(Brushes.Gray, 0, -15, 120, 30);
-
-            if (robotHasWafer)
-            {
-                g.FillEllipse(Brushes.CornflowerBlue, 90, -20, 40, 40);
-            }
-
-            g.ResetTransform();
-
-            int lightX = pnlCenter.Width - 60;
-            int lightY = 50;
-            g.FillRectangle(isAutoRun ? Brushes.Maroon : Brushes.Red, lightX, lightY, 30, 30);
-            g.FillRectangle(Brushes.Olive, lightX, lightY + 30, 30, 30);
-            g.FillRectangle(isAutoRun ? Brushes.Lime : Brushes.Green, lightX, lightY + 60, 30, 30);
-            g.DrawRectangle(Pens.Gray, lightX, lightY, 30, 90);
-        }
-
         private void BtnMain_Click(object sender, EventArgs e) { pnlCenter.Invalidate(); UpdateLayout(); }
         private void BtnRecipe_Click(object sender, EventArgs e)
         {
@@ -640,7 +685,5 @@ namespace SemiGUI
             lPop.Controls.Add(lc);
             lPop.Show();
         }
-
-        // Config 버튼 이벤트 핸들러는 위 생성자에서 연결함 (BtnConfig_Click)
     }
 }
