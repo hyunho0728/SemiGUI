@@ -41,6 +41,14 @@ namespace SemiGUI
         private const long PM_B_HPOS = -190823;    // 270도
         private const long PM_C_HPOS = -322000;    // 0도
 
+        Dictionary<string, long> Hpositions = new Dictionary<string, long>()
+        {
+            {"PM A", PM_A_HPOS},
+            {"PM B", PM_B_HPOS},
+            {"PM C", PM_C_HPOS},
+            {"FOUP A", FOUP_A_HPOS},
+            {"FOUP B", FOUP_B_HPOS}
+        };
         private const long CHAMBER_VPOS = 1150000;      // 이동 안전 높이
         private const long CHAMBER_PLACE_VPOS = 806931; // 챔버 안착 높이
 
@@ -159,7 +167,7 @@ namespace SemiGUI
             this.btnConfig.Click += BtnConfig_Click;
             this.btnLogin.Click += BtnLogin_Click;
             this.btnRobot.Click += btnRobot_Click;
-            this.btnConnect.Click += btnConnect_Click;
+            //this.btnConnect.Click += btnConnect_Click;
 
             this.btnLoadA.Click += (s, e) => { foupACount = 5; UpdateWaferUI(); pnlCenter.Invalidate(); AddLog("Info", "FOUP A", "Manual Load"); };
             this.btnUnloadA.Click += (s, e) => { foupACount = 0; UpdateWaferUI(); pnlCenter.Invalidate(); };
@@ -168,7 +176,6 @@ namespace SemiGUI
 
             this.btnResetChambers.Click += BtnResetChambers_Click;
             this.btnResetRobot.Click += btnResetRobot_Click;
-            this.btnTestSimul.Click += (s, e) => { MessageBox.Show("상단의 AUTO RUN 버튼을 사용하세요."); };
 
             this.pnlCenter.SizeChanged += (s, e) => UpdateLayout();
             this.pnlCenter.Paint += pnlCenter_Paint;
@@ -227,7 +234,6 @@ namespace SemiGUI
         {
             CheckAlarms();
 
-            // 시뮬레이션 중에는 자동 공정 로직(RunProcessAsync) 실행 금지
             if (!isSimulation && !isAutoRun)
             {
                 if (statusPmA == 1 && !isRunningPmA) RunProcessAsync("PMA", timePmA);
@@ -235,15 +241,24 @@ namespace SemiGUI
                 if (statusPmC == 1 && !isRunningPmC) RunProcessAsync("PMC", timePmC);
             }
 
+            // [수정된 로직]
             if (isRobotMoving)
             {
                 AnimateRobot();
                 pnlCenter.Invalidate();
             }
-            else if (isResetting)
+            else
             {
-                isResetting = false;
-                if (!isAutoRun) sysTimer.Stop();
+                // 로봇이 멈췄는데 리셋 중이었다면? -> 리셋 완료 처리
+                if (isResetting)
+                {
+                    isResetting = false; // 리셋 모드 해제
+
+                    // AutoRun 상태가 아니면 타이머 정지 (CPU 절약)
+                    if (!isAutoRun) sysTimer.Stop();
+
+                    AddLog("System", "Robot", "Robot Reset Complete");
+                }
             }
 
             UpdateProcessUI();
@@ -256,11 +271,25 @@ namespace SemiGUI
         {
             if (isAutoRun)
             {
-                if (_cts != null) _cts.Cancel(); // 정지 요청
+                // [수정] STOP 로직 강화
+                if (_cts != null) _cts.Cancel(); // 1. 작업 취소 토큰 발동
+
                 isAutoRun = false;
+
+                // 2. 로봇 애니메이션 즉시 정지
+                isRobotMoving = false;
+
+                // 3. 실행 중이던 공정 플래그 즉시 해제 (RunProcessAsync가 종료되도록 유도)
+                isRunningPmA = false;
+                isRunningPmB = false;
+                isRunningPmC = false;
+
                 btnAutoRun.Text = "AUTO RUN";
                 btnAutoRun.BackColor = Color.LightGray;
                 AddLog("System", "System", "Stop Command Received...");
+
+                // 4. UI 강제 갱신 (멈춘 모습 바로 반영)
+                pnlCenter.Invalidate();
                 return;
             }
 
@@ -300,6 +329,7 @@ namespace SemiGUI
             }
             finally
             {
+                // 종료 후 정리 로직
                 isAutoRun = false;
                 isSimulation = false;
                 btnAutoRun.Text = "AUTO RUN";
@@ -308,6 +338,7 @@ namespace SemiGUI
                 if (_cts != null) { _cts.Dispose(); _cts = null; }
 
                 isRunningPmA = false; isRunningPmB = false; isRunningPmC = false;
+                isRobotMoving = false; // 확실하게 한번 더 정지
             }
         }
 
@@ -427,8 +458,8 @@ namespace SemiGUI
             await Common_ServoMove(targetAng, token, isHardware);
 
             SetDoorState(targetPm, true); await Task.Delay(500, token);
-            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_Cylinder("Forward", token, isHardware);
+            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware); 
             SetVacuum(false, isHardware);
             await Common_Cylinder("Backward", token, isHardware);
             await Common_ZMove(CHAMBER_VPOS, token, isHardware);
@@ -438,13 +469,13 @@ namespace SemiGUI
         // 2. PM -> PM
         private async Task Transfer_Chamber_to_Chamber(string srcPm, float srcAng, string destPm, float destAng, CancellationToken token, bool isHardware)
         {
-            await Common_ZMove(CHAMBER_VPOS, token, isHardware);
+            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_ServoMove(srcAng, token, isHardware);
             SetDoorState(srcPm, true); await Task.Delay(500, token);
 
-            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_Cylinder("Forward", token, isHardware);
             SetVacuum(true, isHardware);
+            await Common_ZMove(CHAMBER_VPOS, token, isHardware);
 
             if (srcPm == "PMA") statusPmA = 0;
             else if (srcPm == "PMB") statusPmB = 0;
@@ -457,8 +488,8 @@ namespace SemiGUI
             await Common_ServoMove(destAng, token, isHardware);
             SetDoorState(destPm, true); await Task.Delay(500, token);
 
-            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_Cylinder("Forward", token, isHardware);
+            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             SetVacuum(false, isHardware);
             await Common_Cylinder("Backward", token, isHardware);
             await Common_ZMove(CHAMBER_VPOS, token, isHardware);
@@ -470,13 +501,13 @@ namespace SemiGUI
         {
             int slotIdx = foupBCount;
 
-            await Common_ZMove(CHAMBER_VPOS, token, isHardware);
+            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_ServoMove(srcAng, token, isHardware);
             SetDoorState(srcPm, true); await Task.Delay(500, token);
 
-            await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_Cylinder("Forward", token, isHardware);
             SetVacuum(true, isHardware);
+            await Common_ZMove(CHAMBER_VPOS, token, isHardware);
 
             if (srcPm == "PMC") statusPmC = 0;
             UpdateProcessUI();
@@ -505,7 +536,7 @@ namespace SemiGUI
         // =========================================================================
         private async Task Common_ZMove(long pos, CancellationToken token, bool isHardware)
         {
-            if (isHardware)
+            if (isHardware && isEtherConnected)
             {
                 EtherCAT_M.Axis1_UD_POS_Update(pos);
                 EtherCAT_M.Axis1_UD_Move_Send();
@@ -521,7 +552,51 @@ namespace SemiGUI
         {
             targetAngle = angle;
             isRobotMoving = true;
-            await WaitForAnimation(angle, token); // 하드웨어여도 UI 싱크를 위해 대기
+
+            string desk = "None";
+
+            switch (angle)
+            {
+                case ANG_FOUP_A:
+                    desk = "FOUP A";
+                    break;
+                case ANG_FOUP_B:
+                    desk = "FOUP B";
+                    break;
+                case ANG_PMA:
+                    desk = "PM A";
+                    break;
+                case ANG_PMB:
+                    desk = "PM B";
+                    break;
+                case ANG_PMC:
+                    desk = "PM C";
+                    break;
+
+            }
+
+            if (desk == "None" || !Hpositions.ContainsKey(desk))
+            {
+                AddLog("Error", "Robot", $"Invalid Angle or Desk: {angle}");
+                isRobotMoving = false;
+                return;
+            }
+
+            if (isHardware)
+            {
+                EtherCAT_M.Axis2_LR_POS_Update(Hpositions[desk]);
+                EtherCAT_M.Axis2_LR_Move_Send();
+                var hardwareTask = WaitAxis2(Hpositions[desk], token);
+                var uiTask = WaitForAnimation(angle, token);
+
+                await Task.WhenAll(hardwareTask, uiTask);
+            }
+            else
+            {
+                await WaitForAnimation(angle, token); // 하드웨어여도 UI 싱크를 위해 대기
+            }
+
+            robotAngle = targetAngle;
             isRobotMoving = false;
         }
 
@@ -608,9 +683,34 @@ namespace SemiGUI
             int timeout = 0;
             while (timeout < 100)
             {
+                if (token.IsCancellationRequested) return;
+
                 try
                 {
                     string sPos = EtherCAT_M.Axis1_is_PosData();
+                    if (long.TryParse(sPos, out long curPos))
+                    {
+                        // [팁] 실제 장비는 목표값에 정확히 1단위까지 맞추기 어려울 수 있음
+                        // 오차 범위(Tolerance)를 100 -> 500~1000 정도로 넉넉히 잡는 것이 좋습니다.
+                        if (Math.Abs(curPos - targetPos) < 500) return;
+                    }
+                }
+                catch { }
+                await Task.Delay(100, token);
+                timeout++;
+            }
+            AddLog("Error", "Axis1", $"Z-Axis Timeout. Target: {targetPos}");
+            //throw new Exception("Axis1 Timeout");
+        }
+
+        private async Task WaitAxis2(long targetPos, CancellationToken token)
+        {
+            int timeout = 0;
+            while (timeout < 100)
+            {
+                try
+                {
+                    string sPos = EtherCAT_M.Axis2_is_PosData();
                     long curPos = long.Parse(sPos);
                     if (Math.Abs(curPos - targetPos) < 100) return;
                 }
@@ -618,7 +718,7 @@ namespace SemiGUI
                 await Task.Delay(100, token);
                 timeout++;
             }
-            throw new Exception("Axis1 Timeout");
+            throw new Exception("Axis2 Timeout");
         }
 
         private void SetVacuum(bool on, bool isHardware)
@@ -806,7 +906,17 @@ namespace SemiGUI
 
             while (true)
             {
-                // [추가] 안전장치: AutoRun이 갑자기 켜지거나, 강제 리셋되거나, 상태가 1(Processing)이 아니면 즉시 종료
+                // STOP 버튼(isAutoRun = false) 감지 시 즉시 루프 탈출
+                if (!isAutoRun)
+                {
+                    // 실행 플래그 초기화 후 함수 종료
+                    if (pmName == "PMA") isRunningPmA = false;
+                    else if (pmName == "PMB") isRunningPmB = false;
+                    else if (pmName == "PMC") isRunningPmC = false;
+                    return;
+                }
+                
+
                 // STOP을 눌러서 상태가 초기화되었을 때 이 로직이 루프를 끊어줍니다.
                 bool isTargetRunning = false;
                 if (pmName == "PMA" && statusPmA == 1) isTargetRunning = true;
@@ -877,10 +987,14 @@ namespace SemiGUI
 
         private void btnRobot_Click(object sender, EventArgs e)
         {
-            Form robotForm = new Form() { Text = "Robot", Size = new Size(1263, 759), StartPosition = FormStartPosition.CenterScreen };
-            RobotControl rc = new RobotControl() { Dock = DockStyle.Fill };
-            robotForm.Controls.Add(rc);
-            robotForm.ShowDialog();
+            if (isEtherConnected)
+            {
+                Form robotForm = new Form() { Text = "Robot", Size = new Size(1263, 759), StartPosition = FormStartPosition.CenterScreen };
+                RobotControl rc = new RobotControl() { Dock = DockStyle.Fill };
+                robotForm.Controls.Add(rc);
+                robotForm.ShowDialog();
+            }
+            
         }
 
         // Hardware Connect/Disconnect
@@ -888,30 +1002,56 @@ namespace SemiGUI
         {
             if (!isEtherConnected)
             {
-                if (EtherCAT_M.CIFX_50RE_Connect() == true)
+                // [수정] try-catch 문으로 감싸서 DLL이 없을 때 프로그램 종료 방지
+                try
                 {
-                    isEtherConnected = true;
-                    btnConnect.Text = "DISCONNECT";
-                    btnConnect.BackColor = Color.LimeGreen;
-                    EtherCAT_M.ReadData_Send_Start(300);
-                    EtherCAT_M.ReadData_Timer_Start();
-                    EtherCAT_M.Axis1_ON();
-                    EtherCAT_M.Axis2_ON();
-                    EtherCAT_M.Axis1_UD_Config_Update(1000000, 1000000, 1000000, 1000000);
-                    EtherCAT_M.Axis2_LR_Config_Update(1000000, 1000000, 1000000, 1000000);
-                    AddLog("Event", "System", "EtherCAT Connected Success");
+                    // 하드웨어 드라이버(DLL)가 없으면 여기서 에러가 발생하여 catch로 넘어갑니다.
+                    if (EtherCAT_M.CIFX_50RE_Connect() == true)
+                    {
+                        isEtherConnected = true;
+                        btnConnect.Text = "DISCONNECT";
+                        btnConnect.BackColor = Color.LimeGreen;
+
+                        EtherCAT_M.ReadData_Send_Start(300);
+                        EtherCAT_M.ReadData_Timer_Start();
+                        EtherCAT_M.Axis1_ON();
+                        EtherCAT_M.Axis2_ON();
+                        EtherCAT_M.Axis1_UD_Config_Update(1000000, 1000000, 1000000, 1000000);
+                        EtherCAT_M.Axis2_LR_Config_Update(1000000, 1000000, 1000000, 1000000);
+
+                        AddLog("Event", "System", "EtherCAT Connected Success");
+                    }
+                    else
+                    {
+                        MessageBox.Show("EtherCAT 연결 실패 (장비를 찾을 수 없음)");
+                        AddLog("Error", "System", "EtherCAT Connection Failed");
+                    }
                 }
-                else
+                catch (DllNotFoundException)
                 {
-                    MessageBox.Show("EtherCAT 연결 실패");
-                    AddLog("Error", "System", "EtherCAT Connection Failed");
+                    // ★ 드라이버 파일이 없는 경우 여기로 들어옵니다.
+                    MessageBox.Show("드라이버(cifx32dll.dll)가 없어 시뮬레이션 모드로 동작합니다.");
+                    AddLog("Info", "System", "Driver not found. Running in Simulation Mode.");
+                    isEtherConnected = false;
+                }
+                catch (Exception ex)
+                {
+                    // 그 외 다른 에러 처리
+                    MessageBox.Show($"연결 중 오류 발생: {ex.Message}");
+                    isEtherConnected = false;
                 }
             }
             else
             {
-                EtherCAT_M.Axis1_OFF();
-                EtherCAT_M.Axis2_OFF();
-                EtherCAT_M.CIFX_50RE_Disconnect();
+                // 연결 해제 로직 (기존과 동일하되 안전장치 추가)
+                try
+                {
+                    EtherCAT_M.Axis1_OFF();
+                    EtherCAT_M.Axis2_OFF();
+                    EtherCAT_M.CIFX_50RE_Disconnect();
+                }
+                catch { /* 무시 */ }
+
                 isEtherConnected = false;
                 btnConnect.Text = "CONNECT";
                 btnConnect.BackColor = Color.Khaki;
@@ -1065,7 +1205,69 @@ namespace SemiGUI
         }
 
         private void BtnMain_Click(object sender, EventArgs e) { pnlCenter.Invalidate(); UpdateLayout(); }
-        private void btnResetRobot_Click(object sender, EventArgs e) { isResetting = true; sysTimer.Start(); }
+        // [수정] async 키워드 추가 (하드웨어 대기 시간을 위해)
+        private async void btnResetRobot_Click(object sender, EventArgs e)
+        {
+            // 1. AutoRun 중이면 리셋 금지 (안전장치)
+            if (isAutoRun)
+            {
+                MessageBox.Show("Auto Run을 먼저 정지해주세요.");
+                return;
+            }
+
+            // 2. 로그 기록
+            AddLog("System", "Robot", "Reset Process Started (Hardware & UI)");
+
+            // =========================================================
+            // [A] 하드웨어 리셋 로직 (EtherCAT 연결 시에만 동작)
+            // =========================================================
+            if (isEtherConnected)
+            {
+                try
+                {
+                    // 1. 실린더(Arm) 강제 후진 (가장 중요: 충돌 방지)
+                    EtherCAT_M.Digital_Output(ROBOT_FORWARD_PORT, false);
+                    EtherCAT_M.Digital_Output(ROBOT_BACKWARD_PORT, true);
+
+                    // 2. 물리적으로 실린더가 들어올 때까지 잠시 대기 (1~2초)
+                    // (센서가 있다면 센서 확인 로직을 넣는 것이 가장 좋음)
+                    await Task.Delay(1500);
+
+                    // 3. 축 원점 복귀 (Homing) 명령 전송
+                    // Z축과 회전축을 동시에 혹은 순차적으로 보냅니다.
+                    EtherCAT_M.Axis1_UD_Homming(); // Z축(상하) 원점 잡기
+                    await Task.Delay(100);         // 통신 꼬임 방지용 미세 딜레이
+                    EtherCAT_M.Axis2_LR_Homming(); // 회전축(좌우) 원점 잡기
+                }
+                catch (Exception ex)
+                {
+                    AddLog("Error", "RobotReset", "Hardware Homing Failed: " + ex.Message);
+                    MessageBox.Show("하드웨어 원점 복귀 실패: " + ex.Message);
+                    return; // 하드웨어 에러 시 UI 리셋도 중단할지 결정 필요
+                }
+            }
+
+            // =========================================================
+            // [B] UI 애니메이션 리셋 로직
+            // =========================================================
+            isResetting = true;
+            isRobotMoving = true; // 타이머가 애니메이션을 수행하도록 설정
+
+            // 로봇 팔이 뻗어있다면? -> 화면상에서도 후진 모드로 시작
+            if (robotExtension > 0)
+            {
+                currentRobotState = ROBOT_STATE_BACKWARD;
+            }
+            // 팔이 접혀있다면? -> 바로 회전 시작 (홈 위치 180도)
+            else
+            {
+                currentRobotState = ROBOT_STATE_ROTATE;
+                targetAngle = 180;
+            }
+
+            // 타이머가 꺼져있다면 실행
+            if (!sysTimer.Enabled) sysTimer.Start();
+        }
         private void BtnResetChambers_Click(object sender, EventArgs e) { statusPmA = 0; statusPmB = 0; statusPmC = 0; progressA = 0; progressB = 0; progressC = 0; UpdateProcessUI(); }
         private void PerformRobotAction() { /* 수동 모드 로직 */ }
         private float GetAngle(string n) { return 0; /* 수동 모드 로직 */ }
@@ -1195,5 +1397,6 @@ namespace SemiGUI
         private void ChamberA_SetDoor(bool isOpen) { EtherCAT_M.Digital_Output(5, isOpen); EtherCAT_M.Digital_Output(4, !isOpen); }
         private void ChamberB_SetDoor(bool isOpen) { EtherCAT_M.Digital_Output(8, isOpen); EtherCAT_M.Digital_Output(7, !isOpen); }
         private void ChamberC_SetDoor(bool isOpen) { EtherCAT_M.Digital_Output(11, isOpen); EtherCAT_M.Digital_Output(10, !isOpen); }
+
     }
 }

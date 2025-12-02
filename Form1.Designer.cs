@@ -120,7 +120,6 @@
             this.pnlWaferR3 = new System.Windows.Forms.Panel();
             this.pnlWaferR4 = new System.Windows.Forms.Panel();
             this.pnlWaferR5 = new System.Windows.Forms.Panel();
-            this.btnTestSimul = new System.Windows.Forms.Button();
             this.pnlTop.SuspendLayout();
             this.grpLogin.SuspendLayout();
             this.pnlHost.SuspendLayout();
@@ -356,7 +355,6 @@
             // pnlBottom
             // 
             this.pnlBottom.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
-            this.pnlBottom.Controls.Add(this.btnTestSimul);
             this.pnlBottom.Controls.Add(this.btnRobot);
             this.pnlBottom.Controls.Add(this.btnMain);
             this.pnlBottom.Controls.Add(this.btnRecipe);
@@ -1239,15 +1237,6 @@
             this.pnlWaferR5.Size = new System.Drawing.Size(70, 8);
             this.pnlWaferR5.TabIndex = 4;
             // 
-            // btnTestSimul
-            // 
-            this.btnTestSimul.Location = new System.Drawing.Point(1629, 19);
-            this.btnTestSimul.Name = "btnTestSimul";
-            this.btnTestSimul.Size = new System.Drawing.Size(110, 23);
-            this.btnTestSimul.TabIndex = 6;
-            this.btnTestSimul.Text = "TestSimul";
-            this.btnTestSimul.UseVisualStyleBackColor = true;
-            // 
             // Form1
             // 
             this.BackColor = System.Drawing.Color.White;
@@ -1408,6 +1397,5 @@
         private System.Windows.Forms.Button btnConfig;
         private System.Windows.Forms.Button btnResetRobot;
         private System.Windows.Forms.Button btnRobot;
-        private System.Windows.Forms.Button btnTestSimul;
     }
 }
