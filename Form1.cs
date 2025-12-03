@@ -450,7 +450,8 @@ namespace SemiGUI
             SetVacuum(true, isHardware);
             await Common_ZMove(FOUP_SLOTS_POS[slotIdx], token, isHardware);
             await Common_Cylinder("Backward", token, isHardware);
-            foupACount--; UpdateWaferUI();
+            foupACount--; 
+            UpdateWaferUI();
 
             await Common_ZMove(CHAMBER_VPOS, token, isHardware);
             await Common_ServoMove(targetAng, token, isHardware);
@@ -691,15 +692,16 @@ namespace SemiGUI
                     {
                         // [팁] 실제 장비는 목표값에 정확히 1단위까지 맞추기 어려울 수 있음
                         // 오차 범위(Tolerance)를 100 -> 500~1000 정도로 넉넉히 잡는 것이 좋습니다.
-                        if (Math.Abs(curPos - targetPos) < 500) return;
+                        if (Math.Abs(curPos - targetPos) < 1000) return;
                     }
                 }
                 catch { }
                 await Task.Delay(100, token);
                 timeout++;
             }
+            string msg = $"Axis Timeout! Target: {targetPos}";
             AddLog("Error", "Axis1", $"Z-Axis Timeout. Target: {targetPos}");
-            //throw new Exception("Axis1 Timeout");
+            throw new Exception(msg);
         }
 
         private async Task WaitAxis2(long targetPos, CancellationToken token)
