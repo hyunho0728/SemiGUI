@@ -120,6 +120,7 @@
             this.pnlWaferR3 = new System.Windows.Forms.Panel();
             this.pnlWaferR4 = new System.Windows.Forms.Panel();
             this.pnlWaferR5 = new System.Windows.Forms.Panel();
+            this.label1 = new System.Windows.Forms.Label();
             this.pnlTop.SuspendLayout();
             this.grpLogin.SuspendLayout();
             this.pnlHost.SuspendLayout();
@@ -140,6 +141,7 @@
             // pnlTop
             // 
             this.pnlTop.BorderStyle = System.Windows.Forms.BorderStyle.FixedSingle;
+            this.pnlTop.Controls.Add(this.label1);
             this.pnlTop.Controls.Add(this.grpLogin);
             this.pnlTop.Controls.Add(this.lblTm);
             this.pnlTop.Controls.Add(this.pnlLedTm);
@@ -1237,6 +1239,15 @@
             this.pnlWaferR5.Size = new System.Drawing.Size(70, 8);
             this.pnlWaferR5.TabIndex = 4;
             // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(1107, 30);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(38, 12);
+            this.label1.TabIndex = 14;
+            this.label1.Text = "label1";
+            // 
             // Form1
             // 
             this.BackColor = System.Drawing.Color.White;
@@ -1397,5 +1408,6 @@
         private System.Windows.Forms.Button btnConfig;
         private System.Windows.Forms.Button btnResetRobot;
         private System.Windows.Forms.Button btnRobot;
+        private System.Windows.Forms.Label label1;
     }
 }

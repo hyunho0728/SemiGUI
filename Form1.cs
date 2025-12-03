@@ -35,7 +35,7 @@ namespace SemiGUI
         // -------------------------------------------------------------------------
         // 좌표 상수 (Pulse)
         // -------------------------------------------------------------------------
-        private const long FOUP_A_HPOS = 13500;    // 135도
+        private const long FOUP_A_HPOS = 13200;    // 135도
         private const long FOUP_B_HPOS = -394700;  // 45도
         private const long PM_A_HPOS = -59064;     // 180도
         private const long PM_B_HPOS = -190823;    // 270도
@@ -166,8 +166,6 @@ namespace SemiGUI
             this.btnLog.Click += BtnLog_Click;
             this.btnConfig.Click += BtnConfig_Click;
             this.btnLogin.Click += BtnLogin_Click;
-            this.btnRobot.Click += btnRobot_Click;
-            //this.btnConnect.Click += btnConnect_Click;
 
             this.btnLoadA.Click += (s, e) => { foupACount = 5; UpdateWaferUI(); pnlCenter.Invalidate(); AddLog("Info", "FOUP A", "Manual Load"); };
             this.btnUnloadA.Click += (s, e) => { foupACount = 0; UpdateWaferUI(); pnlCenter.Invalidate(); };
@@ -175,7 +173,6 @@ namespace SemiGUI
             this.btnUnloadB.Click += (s, e) => { foupBCount = 0; UpdateWaferUI(); pnlCenter.Invalidate(); };
 
             this.btnResetChambers.Click += BtnResetChambers_Click;
-            this.btnResetRobot.Click += btnResetRobot_Click;
 
             this.pnlCenter.SizeChanged += (s, e) => UpdateLayout();
             this.pnlCenter.Paint += pnlCenter_Paint;
@@ -399,7 +396,15 @@ namespace SemiGUI
             {
                 bool actionTaken = false;
 
-                if (statusPmC == 2 && !robotHasWafer)
+                if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
+                {
+                    AddLog("Hard", "Job", "Loading: FOUP A -> PM A");
+                    await Transfer_FoupA_to_Chamber("PMA", ANG_PMA, token, isHardware: true);
+                    _ = RunProcessBackground("PMA", token);
+                    actionTaken = true;
+                }
+
+                else if (statusPmC == 2 && !robotHasWafer)
                 {
                     AddLog("Hard", "Job", "Unloading: PM C -> FOUP B");
                     await Transfer_Chamber_to_FoupB("PMC", ANG_PMC, token, isHardware: true);
@@ -419,13 +424,6 @@ namespace SemiGUI
                     _ = RunProcessBackground("PMB", token);
                     actionTaken = true;
                 }
-                else if (foupACount > 0 && statusPmA == 0 && !robotHasWafer)
-                {
-                    AddLog("Hard", "Job", "Loading: FOUP A -> PM A");
-                    await Transfer_FoupA_to_Chamber("PMA", ANG_PMA, token, isHardware: true);
-                    _ = RunProcessBackground("PMA", token);
-                    actionTaken = true;
-                }
 
                 if (!actionTaken) await Task.Delay(100, token);
             }
@@ -439,20 +437,20 @@ namespace SemiGUI
         // 1. FOUP A -> PM
         private async Task Transfer_FoupA_to_Chamber(string targetPm, float targetAng, CancellationToken token, bool isHardware)
         {
-            int slotIdx = foupACount - 1;
+            int slotIdx = -(foupACount - 5);
 
             if (CheckNeedHomeReturn()) await Common_ServoMove(ANG_PMA, token, isHardware);
 
-            await Common_ZMove(CHAMBER_VPOS, token, isHardware);
+            //await Common_ZMove(CHAMBER_VPOS, token, isHardware);
             await Common_ServoMove(ANG_FOUP_A, token, isHardware);
 
             // Scoop Pick
             await Common_ZMove(FOUP_SLOTS_IN_POS[slotIdx], token, isHardware);
             await Common_Cylinder("Forward", token, isHardware);
             SetVacuum(true, isHardware);
-            foupACount--; UpdateWaferUI();
             await Common_ZMove(FOUP_SLOTS_POS[slotIdx], token, isHardware);
             await Common_Cylinder("Backward", token, isHardware);
+            foupACount--; UpdateWaferUI();
 
             await Common_ZMove(CHAMBER_VPOS, token, isHardware);
             await Common_ServoMove(targetAng, token, isHardware);
@@ -491,6 +489,7 @@ namespace SemiGUI
             await Common_Cylinder("Forward", token, isHardware);
             await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             SetVacuum(false, isHardware);
+            await Task.Delay(500);
             await Common_Cylinder("Backward", token, isHardware);
             await Common_ZMove(CHAMBER_VPOS, token, isHardware);
             SetDoorState(destPm, false);
@@ -499,7 +498,7 @@ namespace SemiGUI
         // 3. PM -> FOUP B
         private async Task Transfer_Chamber_to_FoupB(string srcPm, float srcAng, CancellationToken token, bool isHardware)
         {
-            int slotIdx = foupBCount;
+            int slotIdx = -(foupBCount - 5);
 
             await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_ServoMove(srcAng, token, isHardware);
@@ -866,6 +865,7 @@ namespace SemiGUI
                 {
                     currentVPos = long.Parse(EtherCAT_M.Axis1_is_PosData());
                     currentHPos = long.Parse(EtherCAT_M.Axis2_is_PosData());
+                    label1.Text = $"HPos: {currentHPos}, VPos: {currentVPos}";
                 }
                 else return true;
             }
@@ -880,8 +880,8 @@ namespace SemiGUI
 
             if (dest == "FOUP A" || dest == "FOUP B")
             {
-                bool isAtPickPos = IsRange(currentVPos, FOUP_SLOTS_POS[0]);
-                bool isAtEntryPos = IsRange(currentVPos, FOUP_SLOTS_IN_POS[0]);
+                bool isAtPickPos = IsRange(currentVPos, FOUP_SLOTS_POS[-( dest == "FOUP A" ? foupACount - 5 : foupBCount - 5)]);
+                bool isAtEntryPos = IsRange(currentVPos, FOUP_SLOTS_IN_POS[-(dest == "FOUP A" ? foupACount - 5 : foupBCount - 5)]);
                 if (requst == "Forward" || requst == "Backward") return (isAtEntryPos || isAtPickPos);
             }
             return true;
@@ -1238,6 +1238,12 @@ namespace SemiGUI
                     EtherCAT_M.Axis1_UD_Homming(); // Z축(상하) 원점 잡기
                     await Task.Delay(100);         // 통신 꼬임 방지용 미세 딜레이
                     EtherCAT_M.Axis2_LR_Homming(); // 회전축(좌우) 원점 잡기
+                    await Task.Delay(100);
+                    EtherCAT_M.Digital_Output(14, false); // 흡기 끄기
+                    await Task.Delay(100);
+                    EtherCAT_M.Digital_Output(15, false); // 배기 끄기
+
+                    MessageBox.Show("로봇 상하 좌우 원점 복귀 완료됨");
                 }
                 catch (Exception ex)
                 {
@@ -1268,7 +1274,22 @@ namespace SemiGUI
             // 타이머가 꺼져있다면 실행
             if (!sysTimer.Enabled) sysTimer.Start();
         }
-        private void BtnResetChambers_Click(object sender, EventArgs e) { statusPmA = 0; statusPmB = 0; statusPmC = 0; progressA = 0; progressB = 0; progressC = 0; UpdateProcessUI(); }
+        private void BtnResetChambers_Click(object sender, EventArgs e)
+        { 
+            statusPmA = 0;
+            statusPmB = 0;
+            statusPmC = 0;
+            progressA = 0; 
+            progressB = 0; 
+            progressC = 0;
+
+            robotHasWafer = false;
+
+            UpdateWaferUI();
+            UpdateProcessUI();
+
+            pnlCenter.Invalidate();
+        }
         private void PerformRobotAction() { /* 수동 모드 로직 */ }
         private float GetAngle(string n) { return 0; /* 수동 모드 로직 */ }
 
