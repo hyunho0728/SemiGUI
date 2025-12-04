@@ -441,7 +441,7 @@ namespace SemiGUI
 
             if (CheckNeedHomeReturn()) await Common_ServoMove(ANG_PMA, token, isHardware);
 
-            //await Common_ZMove(CHAMBER_VPOS, token, isHardware);
+            await Common_ZMove(CHAMBER_VPOS, token, isHardware);
             await Common_ServoMove(ANG_FOUP_A, token, isHardware);
 
             // Scoop Pick
@@ -499,7 +499,7 @@ namespace SemiGUI
         // 3. PM -> FOUP B
         private async Task Transfer_Chamber_to_FoupB(string srcPm, float srcAng, CancellationToken token, bool isHardware)
         {
-            int slotIdx = -(foupBCount - 5);
+            int slotIdx = foupBCount;
 
             await Common_ZMove(CHAMBER_PLACE_VPOS, token, isHardware);
             await Common_ServoMove(srcAng, token, isHardware);
@@ -522,10 +522,11 @@ namespace SemiGUI
             await Common_ZMove(FOUP_SLOTS_POS[slotIdx], token, isHardware);
             await Common_Cylinder("Forward", token, isHardware);
             SetVacuum(false, isHardware);
-            foupBCount++; UpdateWaferUI();
+            UpdateWaferUI();
 
             await Common_ZMove(FOUP_SLOTS_IN_POS[slotIdx], token, isHardware);
             await Common_Cylinder("Backward", token, isHardware);
+            foupBCount++;
             await Common_ZMove(CHAMBER_VPOS, token, isHardware);
 
             await Common_ServoMove(ANG_PMA, token, isHardware); // Home Return
@@ -680,6 +681,7 @@ namespace SemiGUI
 
         private async Task WaitAxis1(long targetPos, CancellationToken token)
         {
+            //long cur = 0;
             int timeout = 0;
             while (timeout < 100)
             {
@@ -692,6 +694,7 @@ namespace SemiGUI
                     {
                         // [팁] 실제 장비는 목표값에 정확히 1단위까지 맞추기 어려울 수 있음
                         // 오차 범위(Tolerance)를 100 -> 500~1000 정도로 넉넉히 잡는 것이 좋습니다.
+                        //cur = curPos;
                         if (Math.Abs(curPos - targetPos) < 1000) return;
                     }
                 }
@@ -882,8 +885,8 @@ namespace SemiGUI
 
             if (dest == "FOUP A" || dest == "FOUP B")
             {
-                bool isAtPickPos = IsRange(currentVPos, FOUP_SLOTS_POS[-( dest == "FOUP A" ? foupACount - 5 : foupBCount - 5)]);
-                bool isAtEntryPos = IsRange(currentVPos, FOUP_SLOTS_IN_POS[-(dest == "FOUP A" ? foupACount - 5 : foupBCount - 5)]);
+                bool isAtPickPos = IsRange(currentVPos, FOUP_SLOTS_POS[-( dest == "FOUP A" ? foupACount - 5 : foupBCount)]);
+                bool isAtEntryPos = IsRange(currentVPos, FOUP_SLOTS_IN_POS[-(dest == "FOUP A" ? foupACount - 5 : foupBCount)]);
                 if (requst == "Forward" || requst == "Backward") return (isAtEntryPos || isAtPickPos);
             }
             return true;
